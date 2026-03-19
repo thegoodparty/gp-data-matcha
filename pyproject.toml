@@ -13,6 +13,7 @@ dependencies = [
     "databricks-sql-connector>=3.0.0,<5.0.0",
     "databricks-sdk>=0.30.0,<1.0.0",
     "pyarrow",
+    "rapidfuzz>=3.14.3",
 ]
 
 [dependency-groups]
