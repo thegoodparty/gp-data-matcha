@@ -2,11 +2,9 @@
 Splink entity resolution: multi-source candidacy matching.
 
 Usage:
-    cd entity_resolution
-    uv run python scripts/cli.py match --input data/input.csv
-    uv run python scripts/cli.py match --input catalog.schema.table --output-table catalog.schema.output
+    uv run python scripts/pipeline.py
 
-Input:  CSV or Databricks table from int__er_prematch_candidacy_stages
+Input:  CSV from data/input.csv (or Databricks table via cli.py, added in a later PR)
 Output: results/pairwise_predictions.csv
         results/clustered_candidacies.csv
         results/match_weights_chart.{html,png}
@@ -36,10 +34,11 @@ def load_and_prepare(df: pd.DataFrame) -> list[pd.DataFrame]:
     df["election_date"] = pd.to_datetime(
         df["election_date"], errors="coerce"
     ).dt.date.astype(str)
+    df["election_date"] = df["election_date"].replace("NaT", None)
 
     # Parse first_name_aliases from JSON array string built by the dbt prematch model
     df["first_name_aliases"] = df["first_name_aliases"].apply(
-        lambda v: json.loads(v) if isinstance(v, str) else [v]
+        lambda v: json.loads(v) if isinstance(v, str) else None
     )
 
     # Normalize nulls so Splink treats missing data correctly
@@ -159,44 +158,26 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
     predictions = linker.inference.predict(
         threshold_match_probability=PREDICT_THRESHOLD
     )
-    pairwise_df = predictions.as_pandas_dataframe()
-    print(f"Pairwise predictions: {len(pairwise_df):,} pairs above {PREDICT_THRESHOLD}")
 
-    if len(pairwise_df) == 0:
-        print("WARNING: No predictions found.")
-        return pairwise_df, pd.DataFrame()
-
-    # Person identity filter: require last name agreement + first name or
-    # contact info agreement to remove same-race different-candidate pairs.
-    pre = len(pairwise_df)
-    person_ok = (pairwise_df["gamma_last_name"] > 0) & (
-        (pairwise_df["gamma_first_name"] > 0)
-        | (pairwise_df["gamma_email"] > 0)
-        | (pairwise_df["gamma_phone"] > 0)
-    )
-    # Race-level filter: require official_office_name similarity (gamma > 0
-    # means JW >= 0.75, which excludes completely different offices while
-    # allowing cross-source formatting differences).
-    race_ok = pairwise_df["gamma_official_office_name"] > 0
-    # Exclude pairs where both sides have a known (integer) br_race_id and
-    # they differ — unless the office names match well (gamma >= 2, i.e.
-    # JW >= 0.88), since BR and TS sometimes assign different race IDs to the
-    # same race.
-    both_race_known = (
-        pairwise_df["br_race_id_l"].notna() & pairwise_df["br_race_id_r"].notna()
-    )
-    same_race_id = pairwise_df["br_race_id_l"] == pairwise_df["br_race_id_r"]
-    strong_office_match = pairwise_df["gamma_official_office_name"] >= 2
-    race_id_ok = ~both_race_known | same_race_id | strong_office_match
-    pairwise_df = pairwise_df[person_ok & race_ok & race_id_ok].copy()
-    if (dropped := pre - len(pairwise_df)) > 0:
-        print(f"Person + race filter: removed {dropped:,} pairs")
-
-    # Apply the same filter in DuckDB for clustering.
+    # Post-prediction filters applied in DuckDB (single source of truth for
+    # both the pairwise CSV export and clustering).
     # Uses Splink's private _db_api._con because Splink 4 doesn't expose a
-    # public method for executing raw SQL on the linker's DuckDB connection,
-    # and we need to keep the DuckDB table in sync with the pandas filter above.
+    # public method for executing raw SQL on the linker's DuckDB connection.
     pred_table = predictions.physical_name
+    pre_count = linker._db_api._con.execute(
+        f"SELECT count(*) FROM {pred_table}"
+    ).fetchone()[0]
+    print(f"Pairwise predictions: {pre_count:,} pairs above {PREDICT_THRESHOLD}")
+
+    if pre_count == 0:
+        print("WARNING: No predictions found.")
+        return pd.DataFrame(), pd.DataFrame()
+
+    # 1. Person identity: last name agreement + (first name OR contact info)
+    # 2. Race-level: office name similarity (gamma > 0 means JW >= 0.75)
+    # 3. Race ID: exclude mismatched br_race_id unless office names match well
+    #    (gamma >= 2, i.e. JW >= 0.88), since sources sometimes assign
+    #    different race IDs to the same race.
     linker._db_api._con.execute(
         f"""
         CREATE OR REPLACE TABLE {pred_table} AS
@@ -212,6 +193,10 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
           )
     """
     )
+    pairwise_df = predictions.as_pandas_dataframe()
+    dropped = pre_count - len(pairwise_df)
+    if dropped > 0:
+        print(f"Person + race filter: removed {dropped:,} pairs")
 
     clusters = linker.clustering.cluster_pairwise_predictions_at_threshold(
         predictions, threshold_match_probability=CLUSTER_THRESHOLD
@@ -240,11 +225,11 @@ def save_results(
     # numpy array repr wraps long arrays across multiple lines, which breaks
     # CSV parsers that don't support multiline quoted fields (e.g. Databricks).
     def to_json(v):
-        # This is annoying, but data loaded from Databricks land as native
-        # np.arrays, while data ingested from CSV files are parsed as strings
-        # and verted from JSON
+        # Databricks returns np.arrays; CSV paths return parsed Python lists.
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return "[]"
+        if isinstance(v, str):
+            return v
         if hasattr(v, "tolist"):
             return json.dumps(v.tolist())
         return json.dumps(list(v))
