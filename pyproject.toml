@@ -14,6 +14,7 @@ dependencies = [
     "databricks-sdk>=0.30.0,<1.0.0",
     "pyarrow",
     "rapidfuzz>=3.14.3",
+    "numpy",
 ]
 
 [dependency-groups]
