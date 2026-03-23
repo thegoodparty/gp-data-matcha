@@ -18,5 +18,5 @@ COPY scripts/ /app/scripts/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-ENTRYPOINT ["python", "scripts/cli.py"]
+ENTRYPOINT ["python", "-m", "scripts.cli"]
 CMD ["--help"]
