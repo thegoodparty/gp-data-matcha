@@ -7,11 +7,54 @@ from the `source_name` column.
 
 ## Quick start
 
-### Local CSV
+### Prerequisites
+
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/) for local development
+- Docker for container-based runs
+- [GitHub CLI](https://cli.github.com/) (`gh`) for pulling pre-built images
+
+### Local (uv)
 
 ```bash
-cd entity_resolution
-uv run python scripts/cli.py match --input input.csv
+uv sync
+uv run python -m scripts.cli match --input input.csv
+```
+
+### Docker (pre-built image)
+
+Authenticate Docker with GHCR using the GitHub CLI:
+
+```bash
+# One-time: ensure gh has the packages scope
+gh auth refresh -s read:packages
+
+# Log Docker into GHCR
+echo $(gh auth token) | docker login ghcr.io -u $(gh api user --jq .login) --password-stdin
+```
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/thegoodparty/gp-data-matcha:latest
+
+# Show help
+docker run ghcr.io/thegoodparty/gp-data-matcha:latest match --help
+
+# Run with a local CSV
+docker run \
+  -m 8g --cpus 4 \
+  -v ~/path/to/input.csv:/app/data/input.csv \
+  ghcr.io/thegoodparty/gp-data-matcha:latest \
+  match --input /app/data/input.csv --output-dir /app/out
+```
+
+PR builds are tagged `pr-<number>` (e.g. `ghcr.io/thegoodparty/gp-data-matcha:pr-2`).
+
+### Docker (local build)
+
+```bash
+docker build -t gp-data-matcha .
+docker run gp-data-matcha match --help
 ```
 
 ### Databricks input + output
@@ -22,28 +65,11 @@ export DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abcdef1234567890
 export DATABRICKS_CLIENT_ID=<service-principal-client-id>
 export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
 
-uv run python scripts/cli.py match \
+uv run python -m scripts.cli match \
   --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
   --output-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies \
   --pairwise-table goodparty_data_catalog.dbt_dball.er_pairwise_predictions \
   --overwrite
-```
-
-### Docker
-
-```bash
-docker build -t er-pipeline entity_resolution/
-
-# Show help
-docker run er-pipeline match --help
-
-# Run with Databricks I/O
-docker run \
-  -e DATABRICKS_HOST -e DATABRICKS_HTTP_PATH \
-  -e DATABRICKS_CLIENT_ID -e DATABRICKS_CLIENT_SECRET \
-  er-pipeline match \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
-  --output-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies
 ```
 
 ## CLI reference
@@ -332,6 +358,7 @@ uv run --extra dev pytest tests/ -v
 
 ## CI/CD
 
-The `.github/workflows/er_container.yml` workflow:
-- **On PR:** builds the Docker image (validates it compiles)
-- **On push to main:** builds and pushes to `ghcr.io/goodparty/er-pipeline:latest` and `:sha`
+The `.github/workflows/er_container.yml` workflow builds multi-arch (amd64 + arm64) images:
+- **On PR:** builds and pushes `ghcr.io/thegoodparty/gp-data-matcha:pr-<number>`
+- **On push to main:** pushes `:latest` and `:<sha>` tags
+- **On PR close:** cleans up the PR-specific image tag
