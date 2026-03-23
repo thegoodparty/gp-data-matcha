@@ -2,11 +2,9 @@
 Splink entity resolution: multi-source candidacy matching.
 
 Usage:
-    cd entity_resolution
     uv run python scripts/cli.py match --input data/input.csv
-    uv run python scripts/cli.py match --input catalog.schema.table --output-table catalog.schema.output
 
-Input:  CSV or Databricks table from int__er_prematch_candidacy_stages
+Input:  CSV from int__er_prematch_candidacy_stages
 Output: results/pairwise_predictions.csv
         results/clustered_candidacies.csv
         results/match_weights_chart.{html,png}

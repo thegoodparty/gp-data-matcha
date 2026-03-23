@@ -1,7 +1,6 @@
 """Unit tests for the CLI entrypoint."""
 
 from pathlib import Path
-import sys
 from unittest.mock import patch
 
 import pandas as pd
@@ -52,17 +51,10 @@ def test_match_help():
 @patch("scripts.cli.run", side_effect=_fake_run)
 def test_match_with_csv(mock_run, tmp_path):
     """match subcommand reads a CSV, calls run(), and writes output."""
-    # databricks_io doesn't exist on this branch; stub the import used by _load_input
-    import types
-
-    fake_dbio = types.ModuleType("scripts.databricks_io")
-    fake_dbio.is_databricks_fqn = lambda v: False
-
-    with patch.dict("sys.modules", {"scripts.databricks_io": fake_dbio}):
-        result = CliRunner().invoke(
-            cli,
-            ["match", "--input", str(DUMMY_CSV), "--output-dir", str(tmp_path), "--no-audit"],
-        )
+    result = CliRunner().invoke(
+        cli,
+        ["match", "--input", str(DUMMY_CSV), "--output-dir", str(tmp_path)],
+    )
     assert result.exit_code == 0, f"CLI failed:\n{result.output}\n{result.exception}"
     mock_run.assert_called_once()
 
@@ -76,7 +68,7 @@ def test_match_with_csv(mock_run, tmp_path):
 def test_match_missing_file(mock_run):
     """match fails gracefully when input file doesn't exist."""
     result = CliRunner().invoke(
-        cli, ["match", "--input", "/nonexistent/file.csv", "--no-audit"]
+        cli, ["match", "--input", "/nonexistent/file.csv"]
     )
     assert result.exit_code != 0
 
