@@ -59,7 +59,7 @@ SETTINGS = SettingsCreator(
     link_type="link_only",
     unique_id_column_name="unique_id",
     # These comparisons configs define how Splink does pairwise calculations
-    # between records, including match types (exact/fuzzy/array intersectsion).
+    # between records, including match types (exact/fuzzy/array intersection).
     # Multiple score thresholds show up as separate m/u parameters.
     comparisons=[
         # ── Candidate-level ──
