@@ -243,8 +243,9 @@ def save_results(
             return json.dumps(v.tolist())
         return json.dumps(list(v))
 
-    for col in ["first_name_aliases_l", "first_name_aliases_r"]:
-        pairwise_df[col] = pairwise_df[col].apply(to_json)
+    if len(pairwise_df) > 0:
+        for col in ["first_name_aliases_l", "first_name_aliases_r"]:
+            pairwise_df[col] = pairwise_df[col].apply(to_json)
 
     pairwise_df.to_csv(output_dir / "pairwise_predictions.csv", index=False)
     if len(clustered_df) > 0:
