@@ -58,6 +58,9 @@ def load_and_prepare(df: pd.DataFrame) -> list[pd.DataFrame]:
 SETTINGS = SettingsCreator(
     link_type="link_only",
     unique_id_column_name="unique_id",
+    # These comparisons configs define how Splink does pairwise calculations
+    # between records, including match types (exact/fuzzy/array intersectsion).
+    # Multiple score thresholds show up as separate m/u parameters.
     comparisons=[
         # ── Candidate-level ──
         cl.JaroWinklerAtThresholds(
@@ -94,6 +97,9 @@ SETTINGS = SettingsCreator(
         ),
         cl.ExactMatch("district_identifier"),
     ],
+    # All blocking rules are evaluated and candidate pairs are unioned together
+    # before the pairwise matching. These are the comparisions used when
+    # actually applying the estimates, not for training.
     blocking_rules_to_generate_predictions=[
         block_on("br_race_id"),
         CustomRule(
@@ -137,6 +143,9 @@ EM_TRAINING_BLOCKS = [
     # office/district) cleanly. Blocking on last_name alone produces too many
     # same-race different-person pairs, which inflates the first_name
     # non-agreement m probability and weakens its negative signal.
+    #
+    # These are the blocks used for parameter estimation (m probabilities), not
+    # for evaluating all candidate pairs
     ("last_name", "state", "election_date"),
     ("first_name",),
     ("email",),
