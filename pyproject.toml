@@ -8,6 +8,7 @@ dependencies = [
     "duckdb",
     "nameparser",
     "pandas",
+    "pyarrow",
     "splink>=4.0.15",
     "vl-convert-python>=1.9.0.post1",
 ]
