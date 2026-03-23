@@ -55,6 +55,11 @@ PR builds are tagged `pr-<number>` (e.g. `ghcr.io/thegoodparty/gp-data-matcha:pr
 ```bash
 docker build -t gp-data-matcha .
 docker run gp-data-matcha match --help
+### Local CSV
+
+```bash
+cd entity_resolution
+uv run python scripts/cli.py match --input input.csv
 ```
 
 ### Databricks input + output
@@ -203,9 +208,9 @@ constraints so that only candidates plausibly in the same race are compared.
 | Order | Rule | Purpose |
 |-------|------|---------|
 | 1 | `br_race_id` (exact) | High-cardinality first pass. Pairs records in the same race. Covers the majority of matches. |
-| 2 | `state + election_date + office_name (JW >= 0.88) + last_name` (exact) | Catches cross-source office formatting differences for records without a shared race ID. |
+| 2 | `state + election_date + official_office_name (JW >= 0.88) + last_name` (exact) | Catches cross-source office formatting differences for records without a shared race ID. |
 | 3 | `state + last_name + election_date` (exact) | Broad catch-all for net-new records and cases not covered by race ID or office name. |
-| 4 | `state + election_date + office_name (JW >= 0.88) + last_name (JW >= 0.88)` | Catches last name typos/variants across sources with different office formatting. |
+| 4 | `state + election_date + official_office_name (JW >= 0.88) + last_name (JW >= 0.88)` | Catches last name typos/variants across sources with different office formatting. |
 | 5 | `phone` (exact) | Contact-info matches where names may differ. |
 | 6 | `email` (exact) | Contact-info matches where names may differ. |
 
