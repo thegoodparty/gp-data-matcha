@@ -13,7 +13,6 @@ dependencies = [
     "vl-convert-python>=1.9.0.post1",
     "databricks-sql-connector>=3.0.0,<5.0.0",
     "databricks-sdk>=0.30.0,<1.0.0",
-    "pyarrow",
 ]
 
 [dependency-groups]
@@ -21,5 +20,10 @@ dev = [
     "jupyter",
     "matplotlib",
     "pytest",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end tests that require a live Databricks connection",
 ]
 

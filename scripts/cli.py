@@ -3,7 +3,7 @@ CLI entrypoint for entity resolution.
 
 Usage:
     uv run python scripts/cli.py match --input data/input.csv
-    uv run python scripts/cli.py match --input catalog.schema.table --output-table catalog.schema.output
+    uv run python scripts/cli.py match --input catalog.schema.table --output-cluster-table catalog.schema.output
 """
 
 import json
@@ -78,15 +78,15 @@ def cli():
     help="Directory for local results. Defaults to results/ in the project root.",
 )
 @click.option(
-    "--output-table",
-    "output_table",
+    "--output-cluster-table",
+    "output_cluster_table",
     default=None,
     type=str,
     help="Databricks FQN to upload clustered results (catalog.schema.table).",
 )
 @click.option(
-    "--pairwise-table",
-    "pairwise_table",
+    "--output-pairwise-table",
+    "output_pairwise_table",
     default=None,
     type=str,
     help="Databricks FQN to upload pairwise predictions (catalog.schema.table).",
@@ -100,8 +100,8 @@ def cli():
 def match(
     input_value: str,
     output_dir: Path | None,
-    output_table: str | None,
-    pairwise_table: str | None,
+    output_cluster_table: str | None,
+    output_pairwise_table: str | None,
     overwrite: bool,
 ) -> None:
     """Run Splink entity resolution on prematch data."""
@@ -115,13 +115,13 @@ def match(
     input_df.to_parquet(output_dir / "input.parquet", index=False)
 
     # Upload to Databricks if requested
-    if output_table or pairwise_table:
+    if output_cluster_table or output_pairwise_table:
         from scripts.databricks_io import write_table
 
-        if output_table:
-            write_table(clustered_df, output_table, overwrite=overwrite)
-        if pairwise_table:
-            write_table(pairwise_df, pairwise_table, overwrite=overwrite)
+        if output_cluster_table:
+            write_table(clustered_df, output_cluster_table, overwrite=overwrite)
+        if output_pairwise_table:
+            write_table(pairwise_df, output_pairwise_table, overwrite=overwrite)
 
 
 if __name__ == "__main__":

@@ -199,10 +199,11 @@ def write_table(
     try:
         cursor = conn.cursor()
 
-        if not overwrite and _table_exists(cursor, catalog, schema, table):
-            raise RuntimeError(
-                f"Table {fqn} already exists. Use --overwrite to replace it."
-            )
+        if not overwrite:
+            if _table_exists(cursor, catalog, schema, table):
+                raise RuntimeError(
+                    f"Table {fqn} already exists. Use --overwrite to replace it."
+                )
 
         cursor.execute(f"DROP TABLE IF EXISTS `{catalog}`.`{schema}`.`{table}`")
         schema_spec = _df_to_databricks_schema(df)

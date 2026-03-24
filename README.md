@@ -72,8 +72,8 @@ export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
 
 uv run python -m scripts.cli match \
   --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
-  --output-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies \
-  --pairwise-table goodparty_data_catalog.dbt_dball.er_pairwise_predictions \
+  --output-cluster-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies \
+  --output-pairwise-table goodparty_data_catalog.dbt_dball.er_pairwise_predictions \
   --overwrite
 ```
 
@@ -83,12 +83,11 @@ uv run python -m scripts.cli match \
 Usage: cli.py match [OPTIONS]
 
 Options:
-  --input TEXT           Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
-  --output-dir PATH     Directory for local results (CSVs + charts). Default: results/
-  --output-table TEXT    Databricks FQN to upload clustered results.
-  --pairwise-table TEXT  Databricks FQN to upload pairwise predictions.
-  --overwrite            Overwrite existing Databricks output tables.
-  --run-audit/--no-audit Run audit reports after matching (default: enabled).
+  --input TEXT                  Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
+  --output-dir DIRECTORY        Directory for local results. Default: results/
+  --output-cluster-table TEXT   Databricks FQN to upload clustered results (catalog.schema.table).
+  --output-pairwise-table TEXT  Databricks FQN to upload pairwise predictions (catalog.schema.table).
+  --overwrite                   Overwrite existing Databricks output tables.
 ```
 
 ### Audit subcommands
@@ -356,10 +355,34 @@ A small number of true matches are systematically missed:
 
 ## Testing
 
+### Unit tests
+
 ```bash
-cd entity_resolution
-uv run --extra dev pytest tests/ -v
+uv run pytest tests/ -v
 ```
+
+### Integration tests (requires Databricks)
+
+Integration tests run the full CLI pipeline against a live Databricks SQL
+warehouse. They are automatically skipped when `DATABRICKS_HTTP_PATH` is not
+set.
+
+```bash
+# Local dev (Databricks CLI auth)
+export DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abcdef1234567890
+
+# CI / production (OAuth M2M)
+export DATABRICKS_HOST=dbc-abc123.cloud.databricks.com
+export DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/abcdef1234567890
+export DATABRICKS_CLIENT_ID=<service-principal-client-id>
+export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
+
+uv run pytest tests/ -m integration -v
+```
+
+The integration fixture creates an ephemeral Databricks schema, uploads the
+dummy test data, runs the match pipeline, and tears down the schema on
+completion.
 
 ## CI/CD
 
