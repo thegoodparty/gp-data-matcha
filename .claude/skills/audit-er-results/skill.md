@@ -96,7 +96,18 @@ Read `results/audit_false_negatives.csv`. For each suspicious non-match:
    To distinguish these two cases, temporarily relax or remove the
    post-prediction filters and re-run, then check if the pair appears.
 
-2. Look for systematic patterns:
+2. **Per-provider singleton drill-down**: Check the unmatched singleton count
+   for each provider. If a provider has a **high proportion of unmatched
+   singletons** (e.g. >30% unmatched), drill into that provider specifically.
+   If the absolute number of unmatched records is small enough to review
+   exhaustively (e.g. <500), do so rather than sampling — cross-reference
+   each singleton against all other providers by state + election_date +
+   last_name to find plausible matches that were missed. This catches false
+   negatives that random sampling across all providers would miss, especially
+   for smaller sources where a handful of missed matches significantly
+   impacts the match rate.
+
+3. Look for systematic patterns:
    - Are all misses from one specific provider? A new source with different
      data conventions (e.g. office name formatting) will often show up as a
      cluster of false negatives from that source.
