@@ -32,9 +32,7 @@ def test_match_databricks_round_trip(databricks_tables):
         ],
     )
 
-    assert result.exit_code == 0, (
-        f"CLI failed:\n{result.output}\n{result.exception}"
-    )
+    assert result.exit_code == 0, f"CLI failed:\n{result.output}\n{result.exception}"
 
     # ── Read back from Databricks ──
     clustered_df = read_table(ctx["output_cluster_fqn"])
@@ -60,6 +58,6 @@ def test_match_databricks_round_trip(databricks_tables):
     multi_source = (
         clustered_df.groupby("cluster_id")["source_name"].nunique() > 1
     ).sum()
-    assert multi_source >= 1, (
-        f"Expected at least 1 cross-source cluster, got {multi_source}"
-    )
+    assert (
+        multi_source >= 1
+    ), f"Expected at least 1 cross-source cluster, got {multi_source}"

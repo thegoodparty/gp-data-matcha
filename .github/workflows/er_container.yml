@@ -15,8 +15,20 @@ env:
   IMAGE_NAME: thegoodparty/gp-data-matcha
 
 jobs:
+  lint:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Check formatting with black
+        run: uv run black --check .
+
   build:
     if: github.event.action != 'closed'
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

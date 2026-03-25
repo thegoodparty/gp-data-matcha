@@ -174,14 +174,10 @@ def write_table(
         cursor = conn.cursor()
 
         if overwrite:
-            cursor.execute(
-                f"CREATE OR REPLACE TABLE {t.quoted} ({schema_spec})"
-            )
+            cursor.execute(f"CREATE OR REPLACE TABLE {t.quoted} ({schema_spec})")
         else:
             try:
-                cursor.execute(
-                    f"CREATE TABLE {t.quoted} ({schema_spec})"
-                )
+                cursor.execute(f"CREATE TABLE {t.quoted} ({schema_spec})")
             except Exception as e:
                 if "already exists" in str(e).lower():
                     raise RuntimeError(
@@ -195,7 +191,9 @@ def write_table(
             f"`{t.catalog}`.`{t.schema}`.`{staging_volume}`"
         )
 
-        volume_path = f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
+        volume_path = (
+            f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
+        )
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
             df.to_parquet(tmp.name, index=False)
             with open(tmp.name, "rb") as f:

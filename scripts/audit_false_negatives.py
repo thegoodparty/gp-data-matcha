@@ -74,7 +74,9 @@ def run_false_negatives(
     )
 
     # Pre-group input_df for O(1) candidate lookups instead of repeated boolean indexing
-    candidate_groups = {k: v for k, v in input_df.groupby(["source_name", "state", "election_date"])}
+    candidate_groups = {
+        k: v for k, v in input_df.groupby(["source_name", "state", "election_date"])
+    }
 
     for _, singleton in singleton_sample.iterrows():
         s_provider = singleton["source_name"]

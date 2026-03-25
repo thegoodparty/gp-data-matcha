@@ -18,6 +18,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "black",
     "jupyter",
     "matplotlib",
     "pytest",

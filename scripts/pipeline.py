@@ -204,8 +204,7 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
         "'house','representatives','legislature','legislative','metro',"
         "'and','for','no.','odd','unexpired'"
     )
-    linker._db_api._con.execute(
-        f"""
+    linker._db_api._con.execute(f"""
         CREATE OR REPLACE TABLE {pred_table} AS
         SELECT * FROM {pred_table}
         WHERE gamma_last_name > 0
@@ -236,8 +235,7 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
             AND br_race_id_l != br_race_id_r
             AND gamma_official_office_name < 2
           )
-    """
-    )
+    """)
     pairwise_df = predictions.as_pandas_dataframe()
     dropped = pre_count - len(pairwise_df)
     if dropped > 0:
