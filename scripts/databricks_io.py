@@ -3,12 +3,8 @@ Databricks I/O for entity resolution pipeline.
 
 Reads/writes DataFrames from/to Databricks SQL warehouses.
 
-Authentication (checked in order):
-    1. OAuth M2M (service principal) — if DATABRICKS_CLIENT_ID and
-       DATABRICKS_CLIENT_SECRET are set alongside DATABRICKS_HOST.
-       Used in production containers.
-    2. Databricks CLI / SDK default auth — falls back to ~/.databrickscfg,
-       used for local development.
+Authentication is resolved by the Databricks SDK Config, which reads
+env vars and CLI profiles automatically:
 
 Required env vars (both modes):
     DATABRICKS_HTTP_PATH     — e.g. /sql/1.0/warehouses/abcdef1234567890
@@ -47,69 +43,67 @@ _DTYPE_MAP = {
 }
 
 
-def is_databricks_fqn(value: str) -> bool:
-    """Check if a string looks like a Databricks fully-qualified table name.
+@dataclass(frozen=True)
+class TableFQN:
+    """A fully-qualified Databricks table name (catalog.schema.table)."""
 
-    (catalog.schema.table). Useful for determining whether the input is a CSV
-    file or a table.
+    catalog: str
+    schema: str
+    table: str
+
+    @classmethod
+    def parse(cls, fqn: str) -> "TableFQN":
+        """Parse a 'catalog.schema.table' string."""
+        parts = fqn.split(".")
+        if len(parts) != 3 or not all(p.strip() for p in parts):
+            raise ValueError(f"Expected catalog.schema.table, got: {fqn}")
+        return cls(catalog=parts[0], schema=parts[1], table=parts[2])
+
+    @property
+    def quoted(self) -> str:
+        return f"`{self.catalog}`.`{self.schema}`.`{self.table}`"
+
+
+def is_databricks_fqn(value: str) -> bool:
+    """Check if a string looks like a Databricks fully-qualified table name
+    (catalog.schema.table) vs. a file path.
     """
     if os.sep in value or value.endswith(".csv"):
         return False
-    parts = value.split(".")
-    return len(parts) == 3 and all(p.strip() for p in parts)
-
-
-def _strip_url_prefix(url: str) -> str:
-    """Remove https:// or http:// prefix from a URL."""
-    return url.removeprefix("https://").removeprefix("http://")
+    try:
+        TableFQN.parse(value)
+        return True
+    except ValueError:
+        return False
 
 
 def _build_connect_kwargs() -> dict:
-    """Resolve auth method and return kwargs for databricks_sql.connect().
+    """Return kwargs for databricks_sql.connect().
 
-    Tries OAuth M2M first (env vars), then falls back to Databricks SDK
-    unified auth (CLI profile, Azure CLI, etc.).
+    Auth is resolved by the Databricks SDK Config, which reads env vars
+    (DATABRICKS_HOST, DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET)
+    and CLI profiles automatically.
     """
     http_path = os.environ.get("DATABRICKS_HTTP_PATH", "")
     if not http_path:
         raise ValueError("DATABRICKS_HTTP_PATH env var is required")
 
-    client_id = os.environ.get("DATABRICKS_CLIENT_ID")
-    client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
-    host = os.environ.get("DATABRICKS_HOST", "")
+    config = Config()
+    hostname = config.host.removeprefix("https://").removeprefix("http://")
 
-    # Production: OAuth M2M via service principal
-    if client_id and client_secret:
-        hostname = _strip_url_prefix(host)
-        if not hostname:
-            raise ValueError(
-                "DATABRICKS_HOST is required when using OAuth M2M "
-                "(DATABRICKS_CLIENT_ID/SECRET are set)"
-            )
-        config = Config(
-            host=f"https://{hostname}",
-            client_id=client_id,
-            client_secret=client_secret,
-        )
+    if config.client_id and config.client_secret:
         print("Auth: OAuth M2M (service principal)")
-        return {
-            "server_hostname": hostname,
-            "http_path": http_path,
-            "credentials_provider": lambda: oauth_service_principal(config),
-        }
+        credentials = lambda: oauth_service_principal(config)
+    else:
+        print(f"Auth: Databricks CLI / SDK default ({hostname})")
+        # Wrap config.authenticate to match the expected
+        # () -> (() -> dict) HeaderFactory signature.
+        credentials = lambda: config.authenticate
 
-    # Local dev: Databricks SDK unified auth (CLI profile, PAT, etc.)
-    config = Config(
-        host=f"https://{_strip_url_prefix(host)}" if host else None,
-    )
-    hostname = _strip_url_prefix(config.host)
-    print(f"Auth: Databricks CLI / SDK default ({hostname})")
     return {
         "server_hostname": hostname,
         "http_path": http_path,
-        # Wrap config.authenticate in a lambda to match the expected
-        # () -> (() -> dict) HeaderFactory signature.
-        "credentials_provider": lambda: config.authenticate,
+        "credentials_provider": credentials,
     }
 
 
@@ -136,27 +130,6 @@ def get_connection(
     raise RuntimeError("Unreachable")
 
 
-@dataclass(frozen=True)
-class TableFQN:
-    """A fully-qualified Databricks table name (catalog.schema.table)."""
-
-    catalog: str
-    schema: str
-    table: str
-
-    @classmethod
-    def parse(cls, fqn: str) -> "TableFQN":
-        """Parse a 'catalog.schema.table' string."""
-        parts = fqn.split(".")
-        if len(parts) != 3:
-            raise ValueError(f"Expected catalog.schema.table, got: {fqn}")
-        return cls(catalog=parts[0], schema=parts[1], table=parts[2])
-
-    @property
-    def quoted(self) -> str:
-        return f"`{self.catalog}`.`{self.schema}`.`{self.table}`"
-
-
 def read_table(fqn: str) -> pd.DataFrame:
     """Read a Databricks table into a pandas DataFrame."""
     t = TableFQN.parse(fqn)
@@ -164,10 +137,8 @@ def read_table(fqn: str) -> pd.DataFrame:
     try:
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM {t.quoted}")
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
+        df = cursor.fetchall_arrow().to_pandas()
         cursor.close()
-        df = pd.DataFrame(rows, columns=columns)
         print(f"Read {len(df):,} rows from {fqn}")
         return df
     finally:
@@ -183,23 +154,6 @@ def _df_to_databricks_schema(df: pd.DataFrame) -> str:
     return ", ".join(cols)
 
 
-def _get_workspace_client() -> WorkspaceClient:
-    """Build a WorkspaceClient that respects the same env vars as the SQL connection."""
-    client_id = os.environ.get("DATABRICKS_CLIENT_ID")
-    client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
-    host = os.environ.get("DATABRICKS_HOST", "")
-
-    if client_id and client_secret:
-        return WorkspaceClient(
-            host=f"https://{_strip_url_prefix(host)}",
-            client_id=client_id,
-            client_secret=client_secret,
-        )
-    return WorkspaceClient(
-        host=f"https://{_strip_url_prefix(host)}" if host else None,
-    )
-
-
 def write_table(
     df: pd.DataFrame,
     fqn: str,
@@ -213,12 +167,12 @@ def write_table(
     """
     t = TableFQN.parse(fqn)
     schema_spec = _df_to_databricks_schema(df)
+    w = WorkspaceClient()
 
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
-        # Create or validate the target table
         if overwrite:
             cursor.execute(
                 f"CREATE OR REPLACE TABLE {t.quoted} ({schema_spec})"
@@ -236,17 +190,14 @@ def write_table(
                 raise
         print(f"Created table {fqn}")
 
-        # Ensure the staging volume exists
         cursor.execute(
             f"CREATE VOLUME IF NOT EXISTS "
             f"`{t.catalog}`.`{t.schema}`.`{staging_volume}`"
         )
 
-        # Upload parquet to a staging Volume, then COPY INTO
         volume_path = f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
             df.to_parquet(tmp.name, index=False)
-            w = _get_workspace_client()
             with open(tmp.name, "rb") as f:
                 w.files.upload(volume_path, f, overwrite=True)
             print(f"Uploaded parquet to {volume_path}")
@@ -259,7 +210,6 @@ def write_table(
         )
         print(f"Wrote {len(df):,} rows to {fqn}")
 
-        # Clean up staging file
         try:
             w.files.delete(volume_path)
         except Exception:

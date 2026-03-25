@@ -42,8 +42,9 @@ def test_df_to_databricks_schema():
     assert "`active` BOOLEAN" in schema
 
 
+@patch("scripts.databricks_io.WorkspaceClient")
 @patch("scripts.databricks_io.get_connection")
-def test_write_table_fails_without_overwrite(mock_get_conn):
+def test_write_table_fails_without_overwrite(mock_get_conn, _mock_ws):
     """write_table raises when table exists and overwrite=False."""
     mock_cursor = MagicMock()
     # Simulate Databricks raising on CREATE TABLE when table already exists

@@ -20,38 +20,47 @@ _PROJECT_DIR = Path(__file__).resolve().parent.parent
 _DEFAULT_RESULTS = _PROJECT_DIR / "results"
 
 
+def _serialize_array_value(v):
+    """Convert array/ndarray cell to a JSON string, passing through nulls."""
+    if isinstance(v, np.ndarray):
+        return json.dumps(v.tolist())
+    if isinstance(v, list):
+        return json.dumps(v)
+    return v
+
+
+def _normalize_to_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize Databricks native types to all-string dtypes.
+
+    Splink EM training can fail (e.g. "m values not fully trained") when
+    columns have typed dtypes instead of the all-string layout that
+    pd.read_csv(dtype=str) produces.
+    """
+    for col in df.columns:
+        idx = df[col].first_valid_index()
+        sample = df[col].loc[idx] if idx is not None else None
+
+        if isinstance(sample, (np.ndarray, list)):
+            df[col] = df[col].apply(_serialize_array_value)
+        else:
+            df[col] = df[col].apply(
+                lambda v: str(v).removesuffix(".0") if pd.notna(v) else v
+            )
+    return df
+
+
 def _load_input(input_value: str) -> pd.DataFrame:
     """Load input DataFrame from CSV path or Databricks FQN."""
     if is_databricks_fqn(input_value):
         print(f"Reading from Databricks: {input_value}")
         df = read_table(input_value)
-        # Normalize to all-string dtypes to match pd.read_csv(dtype=str) behavior.
-        # Databricks returns native types which can cause Splink EM training to
-        # fail (e.g. "m values not fully trained") because it handles typed
-        # columns differently during parameter estimation.
-        for col in df.columns:
-            sample = df[col].dropna().iloc[0] if df[col].notna().any() else None
-            if isinstance(sample, (np.ndarray, list)):
-                # Array columns (e.g. first_name_aliases) → JSON strings
-                df[col] = df[col].apply(
-                    lambda v: (
-                        json.dumps(v.tolist() if isinstance(v, np.ndarray) else v)
-                        if isinstance(v, (np.ndarray, list))
-                        else v
-                    )
-                )
-            else:
-                df[col] = df[col].where(
-                    df[col].isna(),
-                    df[col].astype(str).str.replace(r"\.0$", "", regex=True),
-                )
-        return df
-    else:
-        path = Path(input_value)
-        if not path.exists():
-            raise click.BadParameter(f"File not found: {path}")
-        print(f"Reading from CSV: {path}")
-        return pd.read_csv(path, dtype=str)
+        return _normalize_to_strings(df)
+
+    path = Path(input_value)
+    if not path.exists():
+        raise click.BadParameter(f"File not found: {path}")
+    print(f"Reading from CSV: {path}")
+    return pd.read_csv(path, dtype=str)
 
 
 @click.group()
