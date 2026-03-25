@@ -144,22 +144,22 @@ class TableFQN:
     schema: str
     table: str
 
+    @classmethod
+    def parse(cls, fqn: str) -> "TableFQN":
+        """Parse a 'catalog.schema.table' string."""
+        parts = fqn.split(".")
+        if len(parts) != 3:
+            raise ValueError(f"Expected catalog.schema.table, got: {fqn}")
+        return cls(catalog=parts[0], schema=parts[1], table=parts[2])
+
     @property
     def quoted(self) -> str:
         return f"`{self.catalog}`.`{self.schema}`.`{self.table}`"
 
 
-def _parse_fqn(fqn: str) -> TableFQN:
-    """Parse catalog.schema.table from a fully-qualified name."""
-    parts = fqn.split(".")
-    if len(parts) != 3:
-        raise ValueError(f"Expected catalog.schema.table, got: {fqn}")
-    return TableFQN(catalog=parts[0], schema=parts[1], table=parts[2])
-
-
 def read_table(fqn: str) -> pd.DataFrame:
     """Read a Databricks table into a pandas DataFrame."""
-    t = _parse_fqn(fqn)
+    t = TableFQN.parse(fqn)
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -211,7 +211,7 @@ def write_table(
     Uploads a parquet file to a Unity Catalog Volume, then uses COPY INTO
     to load it into the target table.
     """
-    t = _parse_fqn(fqn)
+    t = TableFQN.parse(fqn)
     schema_spec = _df_to_databricks_schema(df)
 
     conn = get_connection()

@@ -13,6 +13,7 @@ import click
 import numpy as np
 import pandas as pd
 
+from scripts.databricks_io import is_databricks_fqn, read_table, write_table
 from scripts.pipeline import run  # noqa: E402
 
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -21,11 +22,7 @@ _DEFAULT_RESULTS = _PROJECT_DIR / "results"
 
 def _load_input(input_value: str) -> pd.DataFrame:
     """Load input DataFrame from CSV path or Databricks FQN."""
-    from scripts.databricks_io import is_databricks_fqn
-
     if is_databricks_fqn(input_value):
-        from scripts.databricks_io import read_table
-
         print(f"Reading from Databricks: {input_value}")
         df = read_table(input_value)
         # Normalize to all-string dtypes to match pd.read_csv(dtype=str) behavior.
@@ -116,8 +113,6 @@ def match(
 
     # Upload to Databricks if requested
     if output_cluster_table or output_pairwise_table:
-        from scripts.databricks_io import write_table
-
         if output_cluster_table:
             write_table(clustered_df, output_cluster_table, overwrite=overwrite)
         if output_pairwise_table:
