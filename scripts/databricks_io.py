@@ -58,7 +58,7 @@ def is_databricks_fqn(value: str) -> bool:
     return len(parts) == 3 and all(p.strip() for p in parts)
 
 
-def _strip_scheme(url: str) -> str:
+def _strip_url_prefix(url: str) -> str:
     """Remove https:// or http:// prefix from a URL."""
     return url.removeprefix("https://").removeprefix("http://")
 
@@ -79,7 +79,7 @@ def _build_connect_kwargs() -> dict:
 
     if client_id and client_secret:
         # Production: OAuth M2M via service principal
-        hostname = _strip_scheme(host)
+        hostname = _strip_url_prefix(host)
         if not hostname:
             raise ValueError(
                 "DATABRICKS_HOST is required when using OAuth M2M "
@@ -103,9 +103,9 @@ def _build_connect_kwargs() -> dict:
     else:
         # Local dev: Databricks SDK unified auth (CLI profile, PAT, etc.)
         config = Config(
-            host=f"https://{_strip_scheme(host)}" if host else None,
+            host=f"https://{_strip_url_prefix(host)}" if host else None,
         )
-        hostname = _strip_scheme(config.host)
+        hostname = _strip_url_prefix(config.host)
         print(f"Auth: Databricks CLI / SDK default ({hostname})")
         # credentials_provider must return a HeaderFactory (callable -> dict).
         # config.authenticate is itself a method that returns a dict, so we
@@ -182,12 +182,12 @@ def _get_workspace_client() -> WorkspaceClient:
 
     if client_id and client_secret:
         return WorkspaceClient(
-            host=f"https://{_strip_scheme(host)}",
+            host=f"https://{_strip_url_prefix(host)}",
             client_id=client_id,
             client_secret=client_secret,
         )
     return WorkspaceClient(
-        host=f"https://{_strip_scheme(host)}" if host else None,
+        host=f"https://{_strip_url_prefix(host)}" if host else None,
     )
 
 
