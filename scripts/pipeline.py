@@ -211,7 +211,7 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
           AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
           AND (
             gamma_official_office_name > 0
-	    -- Catches offices with poor similarity due to word order, but
+            -- Catches offices with poor similarity due to word order, but
             -- overlapping tokens. A good candidate to move to embedding-
             -- based matching next
             OR list_has_any(
