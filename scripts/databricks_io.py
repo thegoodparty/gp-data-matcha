@@ -78,44 +78,39 @@ def _build_connect_kwargs() -> dict:
     client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
     host = os.environ.get("DATABRICKS_HOST", "")
 
+    # Production: OAuth M2M via service principal
     if client_id and client_secret:
-        # Production: OAuth M2M via service principal
         hostname = _strip_url_prefix(host)
         if not hostname:
             raise ValueError(
                 "DATABRICKS_HOST is required when using OAuth M2M "
                 "(DATABRICKS_CLIENT_ID/SECRET are set)"
             )
-
-        def credential_provider():
-            config = Config(
-                host=f"https://{hostname}",
-                client_id=client_id,
-                client_secret=client_secret,
-            )
-            return oauth_service_principal(config)
-
+        config = Config(
+            host=f"https://{hostname}",
+            client_id=client_id,
+            client_secret=client_secret,
+        )
         print("Auth: OAuth M2M (service principal)")
         return {
             "server_hostname": hostname,
             "http_path": http_path,
-            "credentials_provider": credential_provider,
+            "credentials_provider": lambda: oauth_service_principal(config),
         }
-    else:
-        # Local dev: Databricks SDK unified auth (CLI profile, PAT, etc.)
-        config = Config(
-            host=f"https://{_strip_url_prefix(host)}" if host else None,
-        )
-        hostname = _strip_url_prefix(config.host)
-        print(f"Auth: Databricks CLI / SDK default ({hostname})")
-        # credentials_provider must return a HeaderFactory (callable -> dict).
-        # config.authenticate is itself a method that returns a dict, so we
-        # wrap it in a lambda to match the expected () -> (() -> dict) signature.
-        return {
-            "server_hostname": hostname,
-            "http_path": http_path,
-            "credentials_provider": lambda: config.authenticate,
-        }
+
+    # Local dev: Databricks SDK unified auth (CLI profile, PAT, etc.)
+    config = Config(
+        host=f"https://{_strip_url_prefix(host)}" if host else None,
+    )
+    hostname = _strip_url_prefix(config.host)
+    print(f"Auth: Databricks CLI / SDK default ({hostname})")
+    return {
+        "server_hostname": hostname,
+        "http_path": http_path,
+        # Wrap config.authenticate in a lambda to match the expected
+        # () -> (() -> dict) HeaderFactory signature.
+        "credentials_provider": lambda: config.authenticate,
+    }
 
 
 def get_connection(
