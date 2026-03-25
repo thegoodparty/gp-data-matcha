@@ -68,7 +68,7 @@ def is_databricks_fqn(value: str) -> bool:
     """Check if a string looks like a Databricks fully-qualified table name
     (catalog.schema.table) vs. a file path.
     """
-    if os.sep in value or value.endswith(".csv"):
+    if "/" in value or os.sep in value or value.endswith(".csv"):
         return False
     try:
         TableFQN.parse(value)

@@ -117,6 +117,12 @@ def match(
     input_df = _load_input(input_value)
     pairwise_df, clustered_df = run(input_df=input_df, output_dir=output_dir)
 
+    if pairwise_df.empty and clustered_df.empty:
+        raise click.ClickException(
+            "Entity resolution produced 0 matches. This likely indicates a "
+            "problem with the input data or matching configuration."
+        )
+
     # Persist input so standalone audit commands can read it later
     input_df.to_parquet(output_dir / "input.parquet", index=False)
 
