@@ -24,10 +24,12 @@ For CLI auth (local dev):
 """
 
 import os
+import tempfile
 import time
 
 import pandas as pd
 from databricks import sql as databricks_sql
+from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, oauth_service_principal
 from databricks.sql.client import Connection
 
@@ -172,74 +174,89 @@ def _df_to_databricks_schema(df: pd.DataFrame) -> str:
     return ", ".join(cols)
 
 
-def _table_exists(cursor, catalog: str, schema: str, table: str) -> bool:
-    """Check if a table exists via information_schema."""
-    cursor.execute(
-        f"SELECT 1 FROM `{catalog}`.information_schema.tables "
-        "WHERE table_catalog = ? "
-        "AND table_schema = ? "
-        "AND table_name = ?",
-        parameters=[catalog, schema, table],
+def _get_workspace_client() -> WorkspaceClient:
+    """Build a WorkspaceClient that respects the same env vars as the SQL connection."""
+    client_id = os.environ.get("DATABRICKS_CLIENT_ID")
+    client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
+    host = os.environ.get("DATABRICKS_HOST", "")
+
+    if client_id and client_secret:
+        return WorkspaceClient(
+            host=f"https://{_strip_scheme(host)}",
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    return WorkspaceClient(
+        host=f"https://{_strip_scheme(host)}" if host else None,
     )
-    return cursor.fetchone() is not None
 
 
 def write_table(
     df: pd.DataFrame,
     fqn: str,
     overwrite: bool = False,
-    batch_size: int = 5_000,
+    staging_volume: str = "matcha_staging",
 ) -> None:
-    """Write a pandas DataFrame to a Databricks table via batched INSERT."""
-    # This will be sufficient for small batches of records (<100k), but past
-    # that we should rework this to upload a parquet file to a Databricks Volume
-    # and then execute a COPY INTO.
+    """Write a pandas DataFrame to a Databricks table via parquet staging.
+
+    Uploads a parquet file to a Unity Catalog Volume, then uses COPY INTO
+    to load it into the target table.
+    """
     catalog, schema, table = _parse_fqn(fqn)
+    schema_spec = _df_to_databricks_schema(df)
+    fqn_quoted = f"`{catalog}`.`{schema}`.`{table}`"
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
 
-        if not overwrite:
-            if _table_exists(cursor, catalog, schema, table):
-                raise RuntimeError(
-                    f"Table {fqn} already exists. Use --overwrite to replace it."
+        # Create or validate the target table
+        if overwrite:
+            cursor.execute(
+                f"CREATE OR REPLACE TABLE {fqn_quoted} ({schema_spec})"
+            )
+        else:
+            try:
+                cursor.execute(
+                    f"CREATE TABLE {fqn_quoted} ({schema_spec})"
                 )
-
-        cursor.execute(f"DROP TABLE IF EXISTS `{catalog}`.`{schema}`.`{table}`")
-        schema_spec = _df_to_databricks_schema(df)
-        cursor.execute(f"CREATE TABLE `{catalog}`.`{schema}`.`{table}` ({schema_spec})")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    raise RuntimeError(
+                        f"Table {fqn} already exists. Use --overwrite to replace it."
+                    ) from e
+                raise
         print(f"Created table {fqn}")
 
-        # Batched INSERT via VALUES clause
-        total = 0
-        for i in range(0, len(df), batch_size):
-            batch = df.iloc[i : i + batch_size]
-            rows_sql = []
-            for _, row in batch.iterrows():
-                vals = []
-                for v in row:
-                    if (
-                        v is None
-                        or (isinstance(v, float) and pd.isna(v))
-                        or v is pd.NaT
-                    ):
-                        vals.append("NULL")
-                    elif isinstance(v, (int, float)):
-                        vals.append(str(v))
-                    else:
-                        escaped = str(v).replace("\\", "\\\\").replace("'", "\\'")
-                        vals.append(f"'{escaped}'")
-                rows_sql.append(f"({', '.join(vals)})")
-            values_clause = ", ".join(rows_sql)
-            cursor.execute(
-                f"INSERT INTO `{catalog}`.`{schema}`.`{table}` VALUES {values_clause}"
-            )
-            total += len(batch)
-            print(
-                f"  Inserted batch {i // batch_size + 1} ({total:,}/{len(df):,} rows)"
-            )
+        # Ensure the staging volume exists
+        cursor.execute(
+            f"CREATE VOLUME IF NOT EXISTS "
+            f"`{catalog}`.`{schema}`.`{staging_volume}`"
+        )
+
+        # Upload parquet to a staging Volume, then COPY INTO
+        volume_path = f"/Volumes/{catalog}/{schema}/{staging_volume}/{table}.parquet"
+        with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
+            df.to_parquet(tmp.name, index=False)
+            w = _get_workspace_client()
+            with open(tmp.name, "rb") as f:
+                w.files.upload(volume_path, f, overwrite=True)
+            print(f"Uploaded parquet to {volume_path}")
+
+        cursor.execute(
+            f"COPY INTO {fqn_quoted} "
+            f"FROM '{volume_path}' "
+            f"FILEFORMAT = PARQUET "
+            f"COPY_OPTIONS ('mergeSchema' = 'true')"
+        )
+        print(f"Wrote {len(df):,} rows to {fqn}")
+
+        # Clean up staging file
+        try:
+            w.files.delete(volume_path)
+        except Exception:
+            pass  # best-effort cleanup
 
         cursor.close()
-        print(f"Wrote {total:,} rows to {fqn}")
     finally:
         conn.close()

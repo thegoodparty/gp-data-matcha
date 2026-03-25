@@ -46,7 +46,10 @@ def test_df_to_databricks_schema():
 def test_write_table_fails_without_overwrite(mock_get_conn):
     """write_table raises when table exists and overwrite=False."""
     mock_cursor = MagicMock()
-    mock_cursor.fetchone.return_value = (1,)  # table exists
+    # Simulate Databricks raising on CREATE TABLE when table already exists
+    mock_cursor.execute.side_effect = Exception(
+        "[TABLE_OR_VIEW_ALREADY_EXISTS] Table cat.sch.tbl already exists."
+    )
     mock_conn = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
     mock_get_conn.return_value = mock_conn

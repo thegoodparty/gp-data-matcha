@@ -26,4 +26,9 @@ dev = [
 markers = [
     "integration: end-to-end tests that require a live Databricks connection",
 ]
+# Suppress harmless warning from altair (transitive dep via splink) about
+# deduplicated selection parameters — not actionable in our code.
+filterwarnings = [
+    "ignore:Automatically deduplicated selection parameter:UserWarning:altair",
+]
 
