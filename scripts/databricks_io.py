@@ -26,6 +26,7 @@ For CLI auth (local dev):
 import os
 import tempfile
 import time
+from dataclasses import dataclass
 
 import pandas as pd
 from databricks import sql as databricks_sql
@@ -118,8 +119,8 @@ def _build_connect_kwargs() -> dict:
 
 
 def get_connection(
-    max_retries: int = 20,
-    retry_delay: int = 30,
+    max_retries: int = 5,
+    retry_delay: int = 10,
 ) -> Connection:
     """Create a Databricks connection with cold-start retry."""
     connect_kwargs = _build_connect_kwargs()
@@ -140,21 +141,34 @@ def get_connection(
     raise RuntimeError("Unreachable")
 
 
-def _parse_fqn(fqn: str) -> tuple[str, str, str]:
+@dataclass(frozen=True)
+class TableFQN:
+    """A fully-qualified Databricks table name (catalog.schema.table)."""
+
+    catalog: str
+    schema: str
+    table: str
+
+    @property
+    def quoted(self) -> str:
+        return f"`{self.catalog}`.`{self.schema}`.`{self.table}`"
+
+
+def _parse_fqn(fqn: str) -> TableFQN:
     """Parse catalog.schema.table from a fully-qualified name."""
     parts = fqn.split(".")
     if len(parts) != 3:
         raise ValueError(f"Expected catalog.schema.table, got: {fqn}")
-    return parts[0], parts[1], parts[2]
+    return TableFQN(catalog=parts[0], schema=parts[1], table=parts[2])
 
 
 def read_table(fqn: str) -> pd.DataFrame:
     """Read a Databricks table into a pandas DataFrame."""
-    catalog, schema, table = _parse_fqn(fqn)
+    t = _parse_fqn(fqn)
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM `{catalog}`.`{schema}`.`{table}`")
+        cursor.execute(f"SELECT * FROM {t.quoted}")
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
         cursor.close()
@@ -202,9 +216,8 @@ def write_table(
     Uploads a parquet file to a Unity Catalog Volume, then uses COPY INTO
     to load it into the target table.
     """
-    catalog, schema, table = _parse_fqn(fqn)
+    t = _parse_fqn(fqn)
     schema_spec = _df_to_databricks_schema(df)
-    fqn_quoted = f"`{catalog}`.`{schema}`.`{table}`"
 
     conn = get_connection()
     try:
@@ -213,12 +226,12 @@ def write_table(
         # Create or validate the target table
         if overwrite:
             cursor.execute(
-                f"CREATE OR REPLACE TABLE {fqn_quoted} ({schema_spec})"
+                f"CREATE OR REPLACE TABLE {t.quoted} ({schema_spec})"
             )
         else:
             try:
                 cursor.execute(
-                    f"CREATE TABLE {fqn_quoted} ({schema_spec})"
+                    f"CREATE TABLE {t.quoted} ({schema_spec})"
                 )
             except Exception as e:
                 if "already exists" in str(e).lower():
@@ -231,11 +244,11 @@ def write_table(
         # Ensure the staging volume exists
         cursor.execute(
             f"CREATE VOLUME IF NOT EXISTS "
-            f"`{catalog}`.`{schema}`.`{staging_volume}`"
+            f"`{t.catalog}`.`{t.schema}`.`{staging_volume}`"
         )
 
         # Upload parquet to a staging Volume, then COPY INTO
-        volume_path = f"/Volumes/{catalog}/{schema}/{staging_volume}/{table}.parquet"
+        volume_path = f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
             df.to_parquet(tmp.name, index=False)
             w = _get_workspace_client()
@@ -244,7 +257,7 @@ def write_table(
             print(f"Uploaded parquet to {volume_path}")
 
         cursor.execute(
-            f"COPY INTO {fqn_quoted} "
+            f"COPY INTO {t.quoted} "
             f"FROM '{volume_path}' "
             f"FILEFORMAT = PARQUET "
             f"COPY_OPTIONS ('mergeSchema' = 'true')"
