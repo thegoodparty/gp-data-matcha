@@ -4,7 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from scripts.databricks_io import _df_to_databricks_schema, is_databricks_fqn, write_table
+from scripts.databricks_io import (
+    _df_to_databricks_schema,
+    is_databricks_fqn,
+    write_table,
+)
 
 
 def test_is_databricks_fqn_valid():

@@ -1,9 +1,9 @@
-# Entity Resolution: Multi-Source Candidacy Matching
+# 🍵 Matcha: Multi-Source Candidacy Entity Resolution
 
 Splink-based probabilistic record linkage to match candidacy records across
-multiple data sources. Currently links BallotReady (BR) and TechSpeed (TS)
-records, but the pipeline supports any number of sources discovered dynamically
-from the `source_name` column.
+multiple data sources. Currently links BallotReady (BR), TechSpeed (TS), and
+DDHQ records. The pipeline supports any number of sources discovered
+dynamically from the `source_name` column.
 
 ## Quick start
 
@@ -55,11 +55,6 @@ PR builds are tagged `pr-<number>` (e.g. `ghcr.io/thegoodparty/gp-data-matcha:pr
 ```bash
 docker build -t gp-data-matcha .
 docker run gp-data-matcha match --help
-### Local CSV
-
-```bash
-cd entity_resolution
-uv run python scripts/cli.py match --input input.csv
 ```
 
 ### Databricks input + output
@@ -93,14 +88,27 @@ Options:
 ### Audit subcommands
 
 ```bash
-uv run python scripts/cli.py audit summary --input input.csv --results-dir results/
-uv run python scripts/cli.py audit low-confidence --results-dir results/ --sample 20
-uv run python scripts/cli.py audit false-negatives --input input.csv --results-dir results/
+uv run python -m scripts.cli audit summary --results-dir results/
+uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
+uv run python -m scripts.cli audit false-negatives --results-dir results/
 ```
 
 When `--run-audit` is enabled (default), all three audits run automatically after
 matching and log results. The standalone commands above are available for manual
 re-runs against saved CSV results.
+
+### Auditing with Claude Code
+
+The `/audit-er-results` skill (`.claude/skills/audit-er-results/skill.md`)
+provides a guided workflow for auditing match quality with Claude Code. It
+runs through summary stats, low-confidence pair review, false negative
+analysis, regression checking, and produces actionable recommendations. Use it
+after a match run or when evaluating changes to blocking rules, comparisons,
+or post-prediction filters:
+
+```
+/audit-er-results
+```
 
 **Input:** CSV file or Databricks table from `int__er_prematch_candidacy_stages`
 **Output:**
@@ -254,10 +262,16 @@ true candidacy matches (same person + same office + same election):
    first name agreement OR email/phone match. Removes same-race,
    different-candidate pairs.
 
-2. **Race-level filter** — requires `official_office_name` JW >= 0.75
-   (gamma > 0). The 0.75 threshold is high enough to exclude completely
-   different offices (JW 0.60-0.72) while catching cross-source formatting
-   differences for the same office (JW 0.76+).
+2. **Race-level filter** — requires either `official_office_name` JW >= 0.75
+   (gamma > 0) **or** a shared meaningful locality token between the two office
+   names. The JW threshold catches most cross-source formatting differences
+   (e.g. "durham school board" vs "durham county board of education", JW 0.87).
+   The locality-token fallback handles cases where the overall JW is low but
+   both names reference the same place — e.g. "mayor of brodhead" vs
+   "brodhead city mayor" (JW 0.557, but shared token "brodhead"). Common
+   structural words (city, county, board, council, district, school, etc.)
+   are excluded from the token overlap check so that only place names and
+   other distinctive tokens count.
 
 3. **Race ID filter** — excludes pairs where both sides have a known integer
    `br_race_id` and they differ, **unless** the office names match well
@@ -289,17 +303,20 @@ generated even when names don't match exactly:
 
 ### Cross-source office name formatting
 
-BallotReady and TechSpeed often format the same office differently. The fuzzy
-office blocking rule (JW >= 0.88) handles most cases. The 0.75 JW tier in the
-comparison catches reformatted office names that fall below 0.88:
+Sources often format the same office differently. The fuzzy office blocking
+rule (JW >= 0.88) handles most cases. The 0.75 JW tier in the comparison
+catches reformatted office names that fall below 0.88. For extreme formatting
+differences (JW < 0.75), the locality-token fallback catches pairs that share
+a place name:
 
-| BR format | TS format | JW | Mechanism |
-|-----------|-----------|-----|-----------|
-| `fort smith school board - zone 1` | `fort smith public school district zone 1` | 0.89 | Office JW >= 0.88 |
-| `mountainburg school board - zone 2` | `mountainburg school district, zone 2` | 0.89 | Office JW >= 0.88 |
-| `durham school board - district 4` | `durham county board of education district 04` | 0.87 | Office JW >= 0.75 |
-| `university of nebraska board of regents - district 1` | `nebraska board of regents - district 01` | 0.76 | Office JW >= 0.75 |
-| `lake mills city council - district 1` | `city of lake mills council member- district 1` | 0.79 | Office JW >= 0.75 |
+| Source L | Source R | JW | Mechanism |
+|----------|----------|-----|-----------|
+| `fort smith school board - zone 1` (BR) | `fort smith public school district zone 1` (TS) | 0.89 | Office JW >= 0.88 |
+| `durham school board - district 4` (BR) | `durham county board of education district 04` (TS) | 0.87 | Office JW >= 0.75 |
+| `lake mills city council - district 1` (BR) | `city of lake mills council member- district 1` (TS) | 0.79 | Office JW >= 0.75 |
+| `city of racine alderperson 2` (DDHQ) | `racine city council - district 2` (TS) | 0.66 | Locality token "racine" |
+| `mayor of brodhead` (DDHQ) | `brodhead city mayor` (TS) | 0.56 | Locality token "brodhead" |
+| `city of seminole councilmember 3` (DDHQ) | `seminole city council - ward 3` (TS) | 0.64 | Locality token "seminole" |
 
 ### First name nicknames
 
@@ -340,11 +357,16 @@ and district — but the person identity filter separates them:
 
 A small number of true matches are systematically missed:
 
-1. **Office name JW < 0.75 (~5 pairs):** Extreme cross-source formatting
-   differences push JW below the 0.75 threshold. The main example is
-   TechSpeed's "city of norman councilmember councilmember ward N (unexpired)"
-   vs BR's "norman city council - ward N" (JW = 0.65), caused by a duplicated
-   "councilmember" in the TS data.
+1. **Office names with no shared locality token and JW < 0.75 (~2-3 pairs):**
+   The race-level filter requires either JW >= 0.75 or a shared meaningful
+   locality token. A few true matches fall through when the source uses a
+   county name while the other uses a city name for the same jurisdiction
+   (e.g. "louisville metro council" vs "jefferson-dist 9 legislative council"
+   — Louisville is in Jefferson County, but neither name contains the other's
+   locality token). State names used as locality tokens can also cause a small
+   number of false positives (e.g. "university of nebraska board of regents"
+   matching "nebraska member of state board of education" via shared
+   "nebraska").
 
 2. **Uncommon nicknames not in the nicknames seed (~60 pairs sharing
    `br_race_id` + `last_name`):** The nickname alias table doesn't cover

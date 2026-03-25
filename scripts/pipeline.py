@@ -2,8 +2,8 @@
 Splink entity resolution: multi-source candidacy matching.
 
 Usage:
-    uv run python scripts/cli.py match --input data/input.csv
-    uv run python scripts/cli.py match --input catalog.schema.table --output-cluster-table catalog.schema.output
+    uv run python -m scripts.cli match --input data/input.csv
+    uv run python -m scripts.cli match --input catalog.schema.table --output-cluster-table catalog.schema.output
 
 Input:  CSV or Databricks table from int__er_prematch_candidacy_stages
 Output: results/pairwise_predictions.csv
@@ -184,25 +184,58 @@ def predict_and_cluster(linker: Linker) -> tuple[pd.DataFrame, pd.DataFrame]:
         return pd.DataFrame(), pd.DataFrame()
 
     # 1. Person identity: last name agreement + (first name OR contact info)
-    # 2. Race-level: office name similarity (gamma > 0 means JW >= 0.75)
+    # 2. Race-level: office name similarity — either JW >= 0.75 (gamma > 0)
+    #    OR the office names share a meaningful locality token. This handles
+    #    cross-source formatting differences like "mayor of brodhead" vs
+    #    "brodhead city mayor" (JW 0.557) where the place name matches but
+    #    the structural words differ.
     # 3. Race ID: exclude mismatched br_race_id unless office names match well
     #    (gamma >= 2, i.e. JW >= 0.88), since sources sometimes assign
     #    different race IDs to the same race.
-    linker._db_api._con.execute(
-        f"""
+    office_stop_words = (
+        "'city','of','the','county','board','council','school','district',"
+        "'mayor','alderperson','trustee','at','large','zone','ward','seat',"
+        "'position','commission','precinct','town','village','member',"
+        "'councilmember','supervisor','supervisors','commissioner','judge',"
+        "'branch','education','unified','public','elementary','consolidated',"
+        "'central','special','independent','office','clerk','treasurer',"
+        "'coroner','sheriff','magistrate','property','value','administrator',"
+        "'emergency','services','director','justice','peace','representative',"
+        "'house','representatives','legislature','legislative','metro',"
+        "'and','for','no.','odd','unexpired'"
+    )
+    linker._db_api._con.execute(f"""
         CREATE OR REPLACE TABLE {pred_table} AS
         SELECT * FROM {pred_table}
         WHERE gamma_last_name > 0
           AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
-          AND gamma_official_office_name > 0
+          AND (
+            gamma_official_office_name > 0
+            -- Catches offices with poor similarity due to word order, but
+            -- overlapping tokens. A good candidate to move to embedding-
+            -- based matching next
+            OR list_has_any(
+              list_filter(
+                string_split(lower(official_office_name_l), ' '),
+                x -> len(x) > 1
+                  AND NOT list_contains([{office_stop_words}], x)
+                  AND NOT regexp_matches(x, '^\\d+$')
+              ),
+              list_filter(
+                string_split(lower(official_office_name_r), ' '),
+                x -> len(x) > 1
+                  AND NOT list_contains([{office_stop_words}], x)
+                  AND NOT regexp_matches(x, '^\\d+$')
+              )
+            )
+          )
           AND NOT (
             br_race_id_l IS NOT NULL
             AND br_race_id_r IS NOT NULL
             AND br_race_id_l != br_race_id_r
             AND gamma_official_office_name < 2
           )
-    """
-    )
+    """)
     pairwise_df = predictions.as_pandas_dataframe()
     dropped = pre_count - len(pairwise_df)
     if dropped > 0:
