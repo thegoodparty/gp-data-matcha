@@ -7,14 +7,12 @@ Intended to be used during exploratory work and while adding a new provider to
 an existing entity.
 
 Usage:
-    cd entity_resolution
-    uv run python scripts/audit_low_confidence.py --results-dir results/
-    uv run python scripts/audit_low_confidence.py --results-dir results/ --sample 30
+    uv run python -m scripts.cli audit low-confidence --results-dir results/
+    uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 30
 """
 
 from pathlib import Path
 
-import click
 import pandas as pd
 
 # Comparison columns whose gamma values we surface for interpretation
@@ -109,31 +107,3 @@ def run_low_confidence(
             print(f"  {col}: {dist}")
 
     return out_df
-
-
-@click.command()
-@click.option(
-    "--results-dir",
-    required=True,
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Directory containing match results.",
-)
-@click.option(
-    "--sample",
-    "sample_n",
-    default=20,
-    type=int,
-    help="Number of most-ambiguous pairs to return.",
-)
-def main(results_dir: Path, sample_n: int) -> None:
-    """Find the most ambiguous matches for manual review."""
-    pairwise_path = results_dir / "pairwise_predictions.csv"
-    if not pairwise_path.exists():
-        raise FileNotFoundError(f"Expected pairwise_predictions.csv in {results_dir}")
-
-    df = pd.read_csv(pairwise_path)
-    run_low_confidence(df, results_dir, sample_n)
-
-
-if __name__ == "__main__":
-    main()

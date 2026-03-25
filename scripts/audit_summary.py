@@ -2,13 +2,11 @@
 Audit summary: overall match statistics for an entity resolution run.
 
 Usage:
-    cd entity_resolution
-    uv run python scripts/audit_summary.py --results-dir results/
+    uv run python -m scripts.cli audit summary --results-dir results/
 """
 
 from pathlib import Path
 
-import click
 import pandas as pd
 
 
@@ -92,22 +90,3 @@ def run_summary(
     summary_out = results_dir / "audit_summary.csv"
     pd.DataFrame(summary_rows).to_csv(summary_out, index=False)
     print(f"\nSummary written to {summary_out}")
-
-
-@click.command()
-@click.option(
-    "--results-dir",
-    required=True,
-    type=click.Path(exists=True, file_okay=False, path_type=Path),
-    help="Directory containing match results.",
-)
-def main(results_dir: Path) -> None:
-    """Print match summary statistics."""
-    input_df = pd.read_parquet(results_dir / "input.parquet")
-    pairwise_df = pd.read_csv(results_dir / "pairwise_predictions.csv")
-    clustered_df = pd.read_csv(results_dir / "clustered_candidacies.csv")
-    run_summary(input_df, pairwise_df, clustered_df, results_dir)
-
-
-if __name__ == "__main__":
-    main()

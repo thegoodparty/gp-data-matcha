@@ -2,11 +2,11 @@
 CLI entrypoint for entity resolution.
 
 Usage:
-    uv run python scripts/cli.py match --input data/input.csv
-    uv run python scripts/cli.py match --input catalog.schema.table --output-cluster-table catalog.schema.output
-    uv run python scripts/cli.py audit summary --results-dir results/
-    uv run python scripts/cli.py audit low-confidence --results-dir results/ --sample 20
-    uv run python scripts/cli.py audit false-negatives --results-dir results/
+    uv run python -m scripts.cli match --input data/input.csv
+    uv run python -m scripts.cli match --input catalog.schema.table --output-cluster-table catalog.schema.output
+    uv run python -m scripts.cli audit summary --results-dir results/
+    uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
+    uv run python -m scripts.cli audit false-negatives --results-dir results/
 """
 
 import json
@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from scripts.databricks_io import is_databricks_fqn, read_table, write_table
-from scripts.pipeline import run  # noqa: E402
+from scripts.pipeline import run
 
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
 _DEFAULT_RESULTS = _PROJECT_DIR / "results"
