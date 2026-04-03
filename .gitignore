@@ -9,3 +9,4 @@ results/
 dist/
 build/
 .pytest_cache/
+.worktrees/
