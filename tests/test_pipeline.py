@@ -83,3 +83,59 @@ def test_load_and_prepare_aliases_parsed():
     assert isinstance(aliases_a, list)
     assert "bob" in aliases_a
     assert len(aliases_a) == 3
+
+
+# ── Elected Officials tests ──
+
+from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+from scripts.pipeline import build_settings
+
+
+def _make_eo_input(rows: list[dict]) -> pd.DataFrame:
+    """Build a minimal elected officials prematch DataFrame."""
+    defaults = {
+        "unique_id": "id_0",
+        "source_name": "src_a",
+        "first_name": "jane",
+        "last_name": "doe",
+        "first_name_aliases": '["jane"]',
+        "party": None,
+        "email": None,
+        "phone": None,
+        "state": "WI",
+        "official_office_name": "city council",
+        "district_identifier": None,
+        "office_type": "City Council",
+        "office_level": "Local",
+        "city": None,
+        "candidate_office": "City Council",
+    }
+    full_rows = [{**defaults, **r} for r in rows]
+    return pd.DataFrame(full_rows).astype(str)
+
+
+def test_load_and_prepare_eo_no_date_parsing():
+    """Elected officials config skips date parsing (no date_columns)."""
+    df = _make_eo_input(
+        [
+            {"unique_id": "1", "source_name": "ballotready"},
+            {"unique_id": "2", "source_name": "techspeed"},
+        ]
+    )
+    result = load_and_prepare(df, ELECTED_OFFICIAL_CONFIG)
+    assert len(result) == 2
+    assert list(result[0]["source_name"].unique()) == ["ballotready"]
+    # No election_date column should be created or parsed
+    assert "election_date" not in result[0].columns
+
+
+def test_build_settings_candidacy():
+    """build_settings wires the correct number of comparisons and blocking rules."""
+    settings = build_settings(CANDIDACY_CONFIG)
+    assert len(settings.comparisons) == 9
+
+
+def test_build_settings_elected_official():
+    """EO build_settings has 10 comparisons (no election_date, adds office_type + office_level)."""
+    settings = build_settings(ELECTED_OFFICIAL_CONFIG)
+    assert len(settings.comparisons) == 10
