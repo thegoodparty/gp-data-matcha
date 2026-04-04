@@ -139,3 +139,36 @@ def test_build_settings_elected_official():
     """EO build_settings has 10 comparisons (no election_date, adds office_type + office_level)."""
     settings = build_settings(ELECTED_OFFICIAL_CONFIG)
     assert len(settings.comparisons) == 10
+
+
+# ── E2E Smoke Test ──
+
+from pathlib import Path
+
+from scripts.pipeline import run
+
+
+def test_eo_pipeline_smoke(tmp_path):
+    """Full EO pipeline on tiny fixture: proves comparisons, blocking, filters, clustering work."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    pairwise_df, clustered_df = run(
+        input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG
+    )
+
+    # Pipeline completed without error
+    assert len(pairwise_df) > 0, "No pairwise predictions generated"
+    assert len(clustered_df) > 0, "No clustered records generated"
+
+    # Output files written
+    assert (tmp_path / "pairwise_predictions.csv").exists()
+    assert (tmp_path / "clustered_elected_officials.csv").exists()
+
+    # At least 1 cross-source cluster (proves matching worked)
+    multi_source = (
+        clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1
+    ).sum()
+    assert multi_source >= 1, f"Expected cross-source clusters, got {multi_source}"
+
+    # EO-specific retained columns present in clustered output
+    for col in ["source_name", "office_type", "office_level"]:
+        assert col in clustered_df.columns, f"Missing retained column: {col}"
