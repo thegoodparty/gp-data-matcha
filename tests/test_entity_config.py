@@ -62,3 +62,47 @@ def test_candidacy_config_blocking_rules():
     from scripts.configs.candidacy import CANDIDACY_CONFIG
 
     assert len(CANDIDACY_CONFIG.blocking_rules_for_prediction) == 6
+
+
+def test_elected_official_config_comparisons():
+    """Elected official config has 10 comparisons (no election_date)."""
+    from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+
+    assert len(ELECTED_OFFICIAL_CONFIG.comparisons) == 10
+    assert ELECTED_OFFICIAL_CONFIG.entity_type == "elected_official"
+    assert ELECTED_OFFICIAL_CONFIG.clustered_output_name == "clustered_elected_officials.csv"
+
+
+def test_elected_official_config_no_election_date():
+    """Elected official config has no election_date in date_columns or EM blocks."""
+    from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+
+    assert "election_date" not in ELECTED_OFFICIAL_CONFIG.date_columns
+    for cols in ELECTED_OFFICIAL_CONFIG.em_training_blocks:
+        assert "election_date" not in cols
+
+
+def test_elected_official_config_no_race_id_blocking():
+    """Elected official blocking rules don't use br_race_id."""
+    from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+
+    for rule in ELECTED_OFFICIAL_CONFIG.blocking_rules_for_prediction:
+        rule_str = str(rule)
+        assert "br_race_id" not in rule_str
+
+
+def test_get_config_registry():
+    """get_config returns the correct config for each entity type."""
+    c = get_config("candidacy")
+    assert c.entity_type == "candidacy"
+
+    eo = get_config("elected_official")
+    assert eo.entity_type == "elected_official"
+
+
+def test_get_config_unknown():
+    """get_config raises ValueError for unknown entity types."""
+    import pytest
+
+    with pytest.raises(ValueError, match="Unknown entity type"):
+        get_config("nonexistent")

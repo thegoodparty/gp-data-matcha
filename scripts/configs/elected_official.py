@@ -1,0 +1,147 @@
+# scripts/configs/elected_official.py
+"""Elected officials entity resolution config."""
+
+import splink.comparison_level_library as cll
+import splink.internals.comparison_library as cl
+from splink import block_on
+from splink.blocking_rule_library import CustomRule
+from splink.comparison_library import CustomComparison
+
+from scripts.constants import OFFICE_STOP_WORDS
+from scripts.entity_config import EntityConfig
+
+ELECTED_OFFICIAL_CONFIG = EntityConfig(
+    entity_type="elected_official",
+    display_name="Elected Officials",
+    default_input_table="goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials",
+    comparisons=[
+        # ── Person-level ──
+        cl.JaroWinklerAtThresholds(
+            "last_name", score_threshold_or_thresholds=[0.95, 0.88]
+        ).configure(term_frequency_adjustments=True),
+        CustomComparison(
+            output_column_name="first_name",
+            comparison_levels=[
+                cll.NullLevel("first_name"),
+                cll.ExactMatchLevel("first_name").configure(
+                    tf_adjustment_column="first_name",
+                ),
+                cll.ArrayIntersectLevel("first_name_aliases", min_intersection=1),
+                cll.JaroWinklerLevel("first_name", distance_threshold=0.92),
+                cll.ElseLevel(),
+            ],
+        ),
+        cl.ExactMatch("party"),
+        cl.ExactMatch("email"),
+        cl.ExactMatch("phone"),
+        # ── Office / geography-level ──
+        cl.ExactMatch("state"),
+        cl.JaroWinklerAtThresholds(
+            "official_office_name",
+            score_threshold_or_thresholds=[0.95, 0.88, 0.75],
+        ),
+        cl.ExactMatch("district_identifier"),
+        cl.ExactMatch("office_type"),
+        cl.ExactMatch("office_level"),
+    ],
+    blocking_rules_for_prediction=[
+        # Rule 1: state + fuzzy office name + exact last name
+        CustomRule(
+            "l.state = r.state"
+            " AND jaro_winkler_similarity(l.official_office_name,"
+            " r.official_office_name) >= 0.88"
+            " AND l.last_name = r.last_name",
+            sql_dialect="duckdb",
+        ),
+        # Rule 2: state + fuzzy office + fuzzy last name (catches typos)
+        CustomRule(
+            "l.state = r.state"
+            " AND jaro_winkler_similarity(l.official_office_name,"
+            " r.official_office_name) >= 0.88"
+            " AND jaro_winkler_similarity(l.last_name,"
+            " r.last_name) >= 0.88",
+            sql_dialect="duckdb",
+        ),
+        # Rule 3: broad catch-all
+        block_on("state", "last_name"),
+        # Rules 4-5: contact info (low coverage, high precision)
+        block_on("phone"),
+        block_on("email"),
+    ],
+    additional_columns_to_retain=[
+        "source_name",
+        "source_id",
+        "candidate_office",
+        # NOTE: office_level and office_type are NOT listed here because
+        # they are comparison columns — Splink retains them automatically.
+        "district_raw",
+        "city",
+        "term_start_date",
+        "term_end_date",
+        "br_office_holder_id",
+        "br_candidate_id",
+        "ts_officeholder_id",
+        "ts_position_id",
+    ],
+    em_training_blocks=[
+        ("last_name", "state", "office_level"),
+        ("first_name",),
+        ("phone",),
+        ("state", "office_type"),
+    ],
+    predict_threshold=0.01,
+    cluster_threshold=0.95,
+    date_columns=[],
+    clustered_output_name="clustered_elected_officials.csv",
+    post_prediction_filters=[
+        f"""
+        gamma_last_name > 0
+          AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
+          AND (
+            gamma_official_office_name > 0
+            OR list_has_any(
+              list_filter(
+                string_split(lower(official_office_name_l), ' '),
+                x -> len(x) > 1
+                  AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
+                  AND NOT regexp_matches(x, '^\\d+$')
+              ),
+              list_filter(
+                string_split(lower(official_office_name_r), ' '),
+                x -> len(x) > 1
+                  AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
+                  AND NOT regexp_matches(x, '^\\d+$')
+              )
+            )
+          )
+        """
+    ],
+    audit_display_columns=[
+        "source_name",
+        "unique_id",
+        "first_name",
+        "last_name",
+        "party",
+        "email",
+        "phone",
+        "state",
+        "official_office_name",
+        "district_identifier",
+        "candidate_office",
+        "office_type",
+        "office_level",
+    ],
+    audit_gamma_columns=[
+        "gamma_last_name",
+        "gamma_first_name",
+        "gamma_party",
+        "gamma_email",
+        "gamma_phone",
+        "gamma_state",
+        "gamma_official_office_name",
+        "gamma_district_identifier",
+        "gamma_office_type",
+        "gamma_office_level",
+    ],
+    false_negative_group_cols=["source_name", "state", "office_level"],
+)
