@@ -1,54 +1,24 @@
+# scripts/audit_low_confidence.py
 """
 Audit low-confidence matches: find the most ambiguous pairs (closest to 0.5
 match probability) to help identify false positives and understand model
 uncertainty.
 
-Intended to be used during exploratory work and while adding a new provider to
-an existing entity.
-
 Usage:
-    uv run python -m scripts.cli audit low-confidence --results-dir results/
-    uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 30
+    uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/
 """
 
 from pathlib import Path
 
 import pandas as pd
 
-# Comparison columns whose gamma values we surface for interpretation
-GAMMA_COLS = [
-    "gamma_last_name",
-    "gamma_first_name",
-    "gamma_party",
-    "gamma_email",
-    "gamma_phone",
-    "gamma_state",
-    "gamma_election_date",
-    "gamma_official_office_name",
-    "gamma_district_identifier",
-]
-
-# Human-readable columns to display side-by-side
-DISPLAY_COLS = [
-    "source_name",
-    "unique_id",
-    "first_name",
-    "last_name",
-    "party",
-    "email",
-    "phone",
-    "state",
-    "election_date",
-    "official_office_name",
-    "district_identifier",
-    "candidate_office",
-    "br_race_id",
-]
+from scripts.entity_config import EntityConfig
 
 
 def run_low_confidence(
     pairwise_df: pd.DataFrame,
     results_dir: Path,
+    config: EntityConfig,
     sample_n: int = 20,
 ) -> pd.DataFrame:
     """Find the N most ambiguous pairs (closest to 0.5) and write audit CSV."""
@@ -79,7 +49,7 @@ def run_low_confidence(
             "distance_from_0.5": round(pair["_ambiguity"], 4),
         }
         # Add side-by-side display columns
-        for col in DISPLAY_COLS:
+        for col in config.audit_display_columns:
             l_col = f"{col}_l"
             r_col = f"{col}_r"
             if l_col in pair.index:
@@ -87,7 +57,7 @@ def run_low_confidence(
                 row[r_col] = pair[r_col]
 
         # Add gamma values for interpretability
-        for col in GAMMA_COLS:
+        for col in config.audit_gamma_columns:
             if col in pair.index:
                 row[col] = int(pair[col]) if pd.notna(pair[col]) else None
 
@@ -100,7 +70,7 @@ def run_low_confidence(
 
     # Print a quick breakdown of gamma patterns
     print("\n── Gamma Pattern Summary (sampled pairs) ──")
-    for col in GAMMA_COLS:
+    for col in config.audit_gamma_columns:
         if col in out_df.columns:
             counts = out_df[col].value_counts().sort_index()
             dist = ", ".join(f"γ={int(k)}:{int(v)}" for k, v in counts.items())
