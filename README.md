@@ -1,9 +1,14 @@
-# 🍵 Matcha: Multi-Source Candidacy Entity Resolution
+# Matcha: Multi-Source Entity Resolution
 
-Splink-based probabilistic record linkage to match candidacy records across
-multiple data sources. Currently links BallotReady (BR), TechSpeed (TS), and
-DDHQ records. The pipeline supports any number of sources discovered
-dynamically from the `source_name` column.
+Splink-based probabilistic record linkage for matching records across
+multiple data sources. Supports two entity types:
+
+- **Candidacy** — matches candidacy stage records (BR, TS, DDHQ) by person + office + election date
+- **Elected Official** — matches elected official records (BR, TS) by person + office (no election date)
+
+The pipeline supports any number of sources discovered dynamically from the
+`source_name` column. Entity-specific configuration (comparisons, blocking
+rules, filters) lives in `scripts/configs/`.
 
 ## Quick start
 
@@ -17,7 +22,12 @@ dynamically from the `source_name` column.
 
 ```bash
 uv sync
-uv run python -m scripts.cli match --input input.csv
+
+# Candidacy matching (default)
+uv run python -m scripts.cli match --entity-type candidacy --input input.csv
+
+# Elected official matching
+uv run python -m scripts.cli match --entity-type elected_official --input input.csv
 ```
 
 ### Docker (pre-built image)
@@ -66,9 +76,18 @@ export DATABRICKS_CLIENT_ID=<service-principal-client-id>
 export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
 
 uv run python -m scripts.cli match \
+  --entity-type candidacy \
   --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
-  --output-cluster-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies \
-  --output-pairwise-table goodparty_data_catalog.dbt_dball.er_pairwise_predictions \
+  --output-cluster-table goodparty_data_catalog.er_source.er_clustered_candidacies \
+  --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_predictions \
+  --overwrite
+
+# Elected officials
+uv run python -m scripts.cli match \
+  --entity-type elected_official \
+  --input goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials \
+  --output-cluster-table goodparty_data_catalog.er_source.er_clustered_elected_officials \
+  --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_elected_officials \
   --overwrite
 ```
 
@@ -78,8 +97,9 @@ uv run python -m scripts.cli match \
 Usage: cli.py match [OPTIONS]
 
 Options:
+  --entity-type [candidacy|elected_official]  Entity type to match (default: candidacy).
   --input TEXT                  Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
-  --output-dir DIRECTORY        Directory for local results. Default: results/
+  --output-dir DIRECTORY        Directory for local results. Default: results/<entity-type>/
   --output-cluster-table TEXT   Databricks FQN to upload clustered results (catalog.schema.table).
   --output-pairwise-table TEXT  Databricks FQN to upload pairwise predictions (catalog.schema.table).
   --overwrite                   Overwrite existing Databricks output tables.
@@ -88,9 +108,9 @@ Options:
 ### Audit subcommands
 
 ```bash
-uv run python -m scripts.cli audit summary --results-dir results/
-uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
-uv run python -m scripts.cli audit false-negatives --results-dir results/
+uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
+uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/ --sample 20
+uv run python -m scripts.cli audit false-negatives --entity-type elected_official --results-dir results/elected_official/
 ```
 
 When `--run-audit` is enabled (default), all three audits run automatically after
@@ -110,15 +130,15 @@ or post-prediction filters:
 /audit-er-results
 ```
 
-**Input:** CSV file or Databricks table from `int__er_prematch_candidacy_stages`
-**Output:**
-- `results/pairwise_predictions.csv` — all scored candidate pairs
-- `results/clustered_candidacies.csv` — all records with cluster assignments
-- `results/match_weights_chart.html` — Splink match weight visualization
-- `results/m_u_parameters_chart.html` — learned m/u probability visualization
-- `results/audit_summary.csv` — match coverage stats per source
-- `results/audit_low_confidence.csv` — most ambiguous pairs for review
-- `results/audit_false_negatives.csv` — plausible matches the model missed
+**Input:** CSV file or Databricks table from `int__er_prematch_candidacy_stages` or `int__er_prematch_elected_officials`
+**Output** (in `results/<entity-type>/`):
+- `pairwise_predictions.csv` — all scored candidate pairs
+- `clustered_candidacies.csv` or `clustered_elected_officials.csv` — all records with cluster assignments
+- `match_weights_chart.html` — Splink match weight visualization
+- `m_u_parameters_chart.html` — learned m/u probability visualization
+- `audit_summary.csv` — match coverage stats per source
+- `audit_low_confidence.csv` — most ambiguous pairs for review
+- `audit_false_negatives.csv` — plausible matches the model missed
 
 ## Authentication
 

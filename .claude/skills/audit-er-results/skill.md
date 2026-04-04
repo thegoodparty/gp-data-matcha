@@ -7,8 +7,9 @@ user_invocable: true
 # Audit Entity Resolution Results
 
 After an ER match run, audit the results for match quality. Work from the
-repo root directory. Default paths assume `results/` for outputs, but the
-user may override these.
+repo root directory. Default paths assume `results/<entity-type>/` for
+outputs. The `--entity-type` flag selects the config (`candidacy` or
+`elected_official`).
 
 Run each step below sequentially. Read each output CSV after running the
 script, then interpret the results before moving to the next step.
@@ -20,12 +21,16 @@ run the match pipeline first. The `--run-audit` flag runs Steps 1-3
 automatically after matching, but you should still interpret the outputs.
 
 ```bash
-# From local CSV:
-uv run python -m scripts.cli match --input data/input.csv
+# Candidacy (from local CSV):
+uv run python -m scripts.cli match --entity-type candidacy --input data/input.csv
 
-# From Databricks (the typical path):
-uv run python -m scripts.cli match \
-  --input goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages
+# Candidacy (from Databricks — the typical path):
+uv run python -m scripts.cli match --entity-type candidacy \
+  --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages
+
+# Elected officials:
+uv run python -m scripts.cli match --entity-type elected_official \
+  --input goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials
 ```
 
 Requires `DATABRICKS_HTTP_PATH` env var for Databricks reads (see
@@ -34,7 +39,7 @@ Requires `DATABRICKS_HTTP_PATH` env var for Databricks reads (see
 ## Step 1: Summary Statistics
 
 ```bash
-uv run python -m scripts.cli audit summary --results-dir results/
+uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
 ```
 
 Read `results/audit_summary.csv` and interpret the terminal output. Flag:
@@ -61,7 +66,7 @@ drill into that source specifically:
 ## Step 2: Low-Confidence Match Review
 
 ```bash
-uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
+uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/ --sample 20
 ```
 
 This finds the 20 pairs closest to 0.5 match probability — the model's most
@@ -79,7 +84,7 @@ Summarize your findings as:
 ## Step 3: False Negative Review
 
 ```bash
-uv run python -m scripts.cli audit false-negatives --results-dir results/ --sample 20
+uv run python -m scripts.cli audit false-negatives --entity-type candidacy --results-dir results/candidacy/ --sample 20
 ```
 
 Read `results/audit_false_negatives.csv`. For each suspicious non-match:
@@ -129,8 +134,9 @@ negatives, especially for new data sources. The filters include:
   office names. If a new source uses office name conventions that share
   neither JW similarity nor locality tokens with existing sources, this
   filter will drop those pairs.
-- **Race ID consistency**: excludes pairs where both have `br_race_id` but
-  they differ, unless office names are similar (JW >= 0.88)
+- **Race ID consistency** (candidacy only): excludes pairs where both have
+  `br_race_id` but they differ, unless office names are similar (JW >= 0.88).
+  Note: elected officials config does NOT have the race ID filter.
 
 When investigating filter-caused false negatives:
 1. Back up current results (`cp -r results results_baseline`)
@@ -184,6 +190,7 @@ Based on all steps above, compile actionable recommendations. Organize them as:
 - Schema mapping issues
 
 Present these recommendations to the user and ask before making any changes.
-If the user wants to proceed with changes, edit `scripts/pipeline.py` for
-model config, blocking rules, or post-prediction filters, or the dbt prematch
-model for upstream data quality fixes.
+If the user wants to proceed with changes, edit the entity config in
+`scripts/configs/candidacy.py` or `scripts/configs/elected_official.py` for
+comparisons, blocking rules, or post-prediction filters. Edit the dbt
+prematch model for upstream data quality fixes.
