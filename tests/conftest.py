@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 DUMMY_CSV = Path(__file__).parent / "dummy_data.csv"
+DUMMY_CSV_EO = Path(__file__).parent / "dummy_data_elected.csv"
 
 # Databricks catalog used for ephemeral test schemas.
 # Override via DATABRICKS_TEST_CATALOG env var.
@@ -76,5 +77,28 @@ def databricks_tables(databricks_schema, databricks_input_table, tmp_path):
         "input_fqn": databricks_input_table,
         "output_cluster_fqn": f"{databricks_schema}.clustered_{suffix}",
         "output_pairwise_fqn": f"{databricks_schema}.pairwise_{suffix}",
+        "output_dir": tmp_path,
+    }
+
+
+@pytest.fixture(scope="session")
+def databricks_input_table_eo(databricks_schema):
+    """Upload the elected officials dummy CSV as a Databricks table."""
+    from scripts.databricks_io import write_table
+
+    fqn = f"{databricks_schema}.input_prematch_eo"
+    df = pd.read_csv(DUMMY_CSV_EO, dtype=str)
+    write_table(df, fqn, overwrite=True)
+    return fqn
+
+
+@pytest.fixture()
+def databricks_tables_eo(databricks_schema, databricks_input_table_eo, tmp_path):
+    """EO-specific test table FQNs."""
+    suffix = uuid.uuid4().hex[:6]
+    return {
+        "input_fqn": databricks_input_table_eo,
+        "output_cluster_fqn": f"{databricks_schema}.clustered_eo_{suffix}",
+        "output_pairwise_fqn": f"{databricks_schema}.pairwise_eo_{suffix}",
         "output_dir": tmp_path,
     }

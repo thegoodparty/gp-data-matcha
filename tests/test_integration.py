@@ -20,6 +20,8 @@ def test_match_databricks_round_trip(databricks_tables):
         cli,
         [
             "match",
+            "--entity-type",
+            "candidacy",
             "--input",
             ctx["input_fqn"],
             "--output-cluster-table",
@@ -61,3 +63,37 @@ def test_match_databricks_round_trip(databricks_tables):
     assert (
         multi_source >= 1
     ), f"Expected at least 1 cross-source cluster, got {multi_source}"
+
+
+@pytest.mark.integration
+def test_match_elected_officials_databricks_round_trip(databricks_tables_eo):
+    """Elected officials pipeline: read from Databricks, run Splink, write results back."""
+    from scripts.cli import cli
+    from scripts.databricks_io import read_table
+
+    ctx = databricks_tables_eo
+    runner = CliRunner()
+
+    result = runner.invoke(
+        cli,
+        [
+            "match",
+            "--entity-type",
+            "elected_official",
+            "--input",
+            ctx["input_fqn"],
+            "--output-cluster-table",
+            ctx["output_cluster_fqn"],
+            "--output-pairwise-table",
+            ctx["output_pairwise_fqn"],
+            "--output-dir",
+            str(ctx["output_dir"]),
+            "--overwrite",
+        ],
+    )
+
+    assert result.exit_code == 0, f"CLI failed:\n{result.output}\n{result.exception}"
+
+    clustered_df = read_table(ctx["output_cluster_fqn"])
+    assert len(clustered_df) > 0, "Clustered table is empty"
+    assert "cluster_id" in clustered_df.columns

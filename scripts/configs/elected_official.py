@@ -93,8 +93,7 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
     cluster_threshold=0.95,
     date_columns=[],
     clustered_output_name="clustered_elected_officials.csv",
-    post_prediction_filters=[
-        f"""
+    post_prediction_filters=[f"""
         gamma_last_name > 0
           AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
           AND (
@@ -114,8 +113,7 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
               )
             )
           )
-        """
-    ],
+        """],
     audit_display_columns=[
         "source_name",
         "unique_id",

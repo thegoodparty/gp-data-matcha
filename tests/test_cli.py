@@ -94,3 +94,25 @@ def test_match_requires_input():
     result = CliRunner().invoke(cli, ["match", "--entity-type", "candidacy"])
     assert result.exit_code != 0
     assert "Missing option" in result.output or "required" in result.output.lower()
+
+
+@patch("scripts.cli.run", side_effect=_fake_run)
+def test_match_elected_official_with_csv(mock_run, tmp_path):
+    """match with --entity-type elected_official routes to the correct config."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "match",
+            "--entity-type",
+            "elected_official",
+            "--input",
+            str(DUMMY_CSV),
+            "--output-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, f"CLI failed:\n{result.output}\n{result.exception}"
+    # Verify config was passed with correct entity type
+    call_args = mock_run.call_args
+    config = call_args.kwargs.get("config") or call_args[0][2]
+    assert config.entity_type == "elected_official"
