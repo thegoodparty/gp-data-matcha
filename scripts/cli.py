@@ -1,12 +1,11 @@
+# scripts/cli.py
 """
 CLI entrypoint for entity resolution.
 
 Usage:
-    uv run python -m scripts.cli match --input data/input.csv
-    uv run python -m scripts.cli match --input catalog.schema.table --output-cluster-table catalog.schema.output
-    uv run python -m scripts.cli audit summary --results-dir results/
-    uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
-    uv run python -m scripts.cli audit false-negatives --results-dir results/
+    uv run python -m scripts.cli match --entity-type candidacy --input data/input.csv
+    uv run python -m scripts.cli match --entity-type elected_official --input catalog.schema.table
+    uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
 """
 
 import json
@@ -17,10 +16,19 @@ import numpy as np
 import pandas as pd
 
 from scripts.databricks_io import is_databricks_fqn, read_table, write_table
+from scripts.entity_config import EntityConfig, get_config
 from scripts.pipeline import run
 
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
 _DEFAULT_RESULTS = _PROJECT_DIR / "results"
+
+_ENTITY_TYPE_OPTION = click.option(
+    "--entity-type",
+    "entity_type",
+    default="candidacy",
+    type=click.Choice(["candidacy", "elected_official"], case_sensitive=False),
+    help="Entity type to match (default: candidacy).",
+)
 
 
 def _serialize_array_value(v):
@@ -33,12 +41,7 @@ def _serialize_array_value(v):
 
 
 def _normalize_to_strings(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize Databricks native types to all-string dtypes.
-
-    Splink EM training can fail (e.g. "m values not fully trained") when
-    columns have typed dtypes instead of the all-string layout that
-    pd.read_csv(dtype=str) produces.
-    """
+    """Normalize Databricks native types to all-string dtypes."""
     for col in df.columns:
         idx = df[col].first_valid_index()
         sample = df[col].loc[idx] if idx is not None else None
@@ -66,11 +69,13 @@ def _load_input(input_value: str) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str)
 
 
-def _load_results(results_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def _load_results(
+    results_dir: Path, config: EntityConfig
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load input, pairwise, and clustered DataFrames from a results directory."""
     input_df = pd.read_parquet(results_dir / "input.parquet")
     pairwise_df = pd.read_csv(results_dir / "pairwise_predictions.csv")
-    clustered_df = pd.read_csv(results_dir / "clustered_candidacies.csv")
+    clustered_df = pd.read_csv(results_dir / config.clustered_output_name)
     return input_df, pairwise_df, clustered_df
 
 
@@ -80,6 +85,7 @@ def cli():
 
 
 @cli.command()
+@_ENTITY_TYPE_OPTION
 @click.option(
     "--input",
     "input_value",
@@ -92,7 +98,7 @@ def cli():
     "output_dir",
     default=None,
     type=click.Path(file_okay=False, path_type=Path),
-    help="Directory for local results. Defaults to results/ in the project root.",
+    help="Directory for local results. Defaults to results/<entity-type>/.",
 )
 @click.option(
     "--output-cluster-table",
@@ -121,6 +127,7 @@ def cli():
     help="Run audit reports after matching (default: enabled).",
 )
 def match(
+    entity_type: str,
     input_value: str,
     output_dir: Path | None,
     output_cluster_table: str | None,
@@ -129,11 +136,13 @@ def match(
     run_audit: bool,
 ) -> None:
     """Run Splink entity resolution on prematch data."""
+    config = get_config(entity_type)
+
     if output_dir is None:
-        output_dir = _DEFAULT_RESULTS
+        output_dir = _DEFAULT_RESULTS / config.entity_type
 
     input_df = _load_input(input_value)
-    pairwise_df, clustered_df = run(input_df=input_df, output_dir=output_dir)
+    pairwise_df, clustered_df = run(input_df=input_df, output_dir=output_dir, config=config)
 
     if pairwise_df.empty and clustered_df.empty:
         raise click.ClickException(
@@ -160,11 +169,11 @@ def match(
 
         for label, fn, args in [
             ("summary", run_summary, (input_df, pairwise_df, clustered_df, output_dir)),
-            ("low-confidence", run_low_confidence, (pairwise_df, output_dir)),
+            ("low-confidence", run_low_confidence, (pairwise_df, output_dir, config)),
             (
                 "false-negatives",
                 run_false_negatives,
-                (input_df, pairwise_df, clustered_df, output_dir),
+                (input_df, pairwise_df, clustered_df, output_dir, config),
             ),
         ]:
             try:
@@ -182,24 +191,29 @@ def audit():
 
 
 @audit.command("summary")
+@_ENTITY_TYPE_OPTION
 @click.option(
     "--results-dir",
-    default=str(_DEFAULT_RESULTS),
+    default=None,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Directory containing match results.",
 )
-def audit_summary(results_dir: Path) -> None:
+def audit_summary(entity_type: str, results_dir: Path | None) -> None:
     """Print match summary statistics."""
     from scripts.audit_summary import run_summary
 
-    input_df, pairwise_df, clustered_df = _load_results(results_dir)
+    config = get_config(entity_type)
+    if results_dir is None:
+        results_dir = _DEFAULT_RESULTS / config.entity_type
+    input_df, pairwise_df, clustered_df = _load_results(results_dir, config)
     run_summary(input_df, pairwise_df, clustered_df, results_dir)
 
 
 @audit.command("low-confidence")
+@_ENTITY_TYPE_OPTION
 @click.option(
     "--results-dir",
-    default=str(_DEFAULT_RESULTS),
+    default=None,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Directory containing match results.",
 )
@@ -210,18 +224,24 @@ def audit_summary(results_dir: Path) -> None:
     type=int,
     help="Number of most-ambiguous pairs to return.",
 )
-def audit_low_confidence(results_dir: Path, sample_n: int) -> None:
+def audit_low_confidence(
+    entity_type: str, results_dir: Path | None, sample_n: int
+) -> None:
     """Find the most ambiguous matches for manual review."""
     from scripts.audit_low_confidence import run_low_confidence
 
-    _, pairwise_df, _ = _load_results(results_dir)
-    run_low_confidence(pairwise_df, results_dir, sample_n)
+    config = get_config(entity_type)
+    if results_dir is None:
+        results_dir = _DEFAULT_RESULTS / config.entity_type
+    _, pairwise_df, _ = _load_results(results_dir, config)
+    run_low_confidence(pairwise_df, results_dir, config, sample_n)
 
 
 @audit.command("false-negatives")
+@_ENTITY_TYPE_OPTION
 @click.option(
     "--results-dir",
-    default=str(_DEFAULT_RESULTS),
+    default=None,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Directory containing match results.",
 )
@@ -232,12 +252,17 @@ def audit_low_confidence(results_dir: Path, sample_n: int) -> None:
     type=int,
     help="Number of suspicious pairs to find.",
 )
-def audit_false_negatives(results_dir: Path, sample_n: int) -> None:
+def audit_false_negatives(
+    entity_type: str, results_dir: Path | None, sample_n: int
+) -> None:
     """Find plausible matches that the model missed."""
     from scripts.audit_false_negatives import run_false_negatives
 
-    input_df, pairwise_df, clustered_df = _load_results(results_dir)
-    run_false_negatives(input_df, pairwise_df, clustered_df, results_dir, sample_n)
+    config = get_config(entity_type)
+    if results_dir is None:
+        results_dir = _DEFAULT_RESULTS / config.entity_type
+    input_df, pairwise_df, clustered_df = _load_results(results_dir, config)
+    run_false_negatives(input_df, pairwise_df, clustered_df, results_dir, config, sample_n)
 
 
 if __name__ == "__main__":
