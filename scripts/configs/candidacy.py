@@ -86,8 +86,7 @@ CANDIDACY_CONFIG = EntityConfig(
     cluster_threshold=0.95,
     date_columns=["election_date"],
     clustered_output_name="clustered_candidacies.csv",
-    post_prediction_filters=[
-        f"""
+    post_prediction_filters=[f"""
         gamma_last_name > 0
           AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
           AND (
@@ -113,8 +112,7 @@ CANDIDACY_CONFIG = EntityConfig(
             AND br_race_id_l != br_race_id_r
             AND gamma_official_office_name < 2
           )
-        """
-    ],
+        """],
     audit_display_columns=[
         "source_name",
         "unique_id",

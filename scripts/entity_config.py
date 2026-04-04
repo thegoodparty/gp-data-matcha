@@ -46,16 +46,16 @@ class EntityConfig:
 def get_config(entity_type: str) -> EntityConfig:
     """Look up an EntityConfig by name. Raises ValueError for unknown types."""
     # Import lazily to avoid circular imports during config construction
-    from scripts.configs.candidacy import CANDIDACY_CONFIG
-    from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+    if entity_type == "candidacy":
+        from scripts.configs.candidacy import CANDIDACY_CONFIG
 
-    configs: dict[str, EntityConfig] = {
-        "candidacy": CANDIDACY_CONFIG,
-        "elected_official": ELECTED_OFFICIAL_CONFIG,
-    }
-    if entity_type not in configs:
+        return CANDIDACY_CONFIG
+    elif entity_type == "elected_official":
+        from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+
+        return ELECTED_OFFICIAL_CONFIG
+    else:
         raise ValueError(
             f"Unknown entity type '{entity_type}'. "
-            f"Available: {sorted(configs.keys())}"
+            f"Available: ['candidacy', 'elected_official']"
         )
-    return configs[entity_type]

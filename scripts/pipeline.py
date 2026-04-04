@@ -83,9 +83,7 @@ def predict_and_cluster(
     pre_count = linker._db_api._con.execute(
         f"SELECT count(*) FROM {pred_table}"
     ).fetchone()[0]
-    print(
-        f"Pairwise predictions: {pre_count:,} pairs above {config.predict_threshold}"
-    )
+    print(f"Pairwise predictions: {pre_count:,} pairs above {config.predict_threshold}")
 
     if pre_count == 0:
         print("WARNING: No predictions found.")
@@ -113,9 +111,7 @@ def predict_and_cluster(
     clustered_df = clusters.as_pandas_dataframe()
 
     n_matched = (clustered_df.groupby("cluster_id").size() > 1).sum()
-    n_cross = (
-        clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1
-    ).sum()
+    n_cross = (clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1).sum()
     print(f"Matched clusters: {n_matched:,}  |  Cross-source: {n_cross:,}")
     if (within := n_matched - n_cross) > 0:
         print(f"WARNING: {within} within-source duplicate clusters found")

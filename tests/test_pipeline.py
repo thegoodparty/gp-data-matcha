@@ -1,6 +1,8 @@
+# tests/test_pipeline.py
 """Tests for pipeline.load_and_prepare."""
 
 import pandas as pd
+from scripts.configs.candidacy import CANDIDACY_CONFIG
 from scripts.pipeline import load_and_prepare
 
 
@@ -35,7 +37,7 @@ def test_load_and_prepare_multi_source():
             {"unique_id": "4", "source_name": "alpha"},
         ]
     )
-    result = load_and_prepare(df)
+    result = load_and_prepare(df, CANDIDACY_CONFIG)
     assert len(result) == 3
     assert list(result[0]["source_name"].unique()) == ["alpha"]
     assert list(result[1]["source_name"].unique()) == ["bravo"]
@@ -53,7 +55,7 @@ def test_load_and_prepare_null_normalization():
             {"unique_id": "4", "source_name": "b", "email": "real@test.com"},
         ]
     )
-    result = load_and_prepare(df)
+    result = load_and_prepare(df, CANDIDACY_CONFIG)
     a_df = result[0]  # source "a"
     assert a_df["email"].isna().all() or (a_df["email"] == None).all()  # noqa: E711
     b_df = result[1]  # source "b"
@@ -76,7 +78,7 @@ def test_load_and_prepare_aliases_parsed():
             },
         ]
     )
-    result = load_and_prepare(df)
+    result = load_and_prepare(df, CANDIDACY_CONFIG)
     aliases_a = result[0]["first_name_aliases"].iloc[0]
     assert isinstance(aliases_a, list)
     assert "bob" in aliases_a

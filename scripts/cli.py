@@ -142,7 +142,9 @@ def match(
         output_dir = _DEFAULT_RESULTS / config.entity_type
 
     input_df = _load_input(input_value)
-    pairwise_df, clustered_df = run(input_df=input_df, output_dir=output_dir, config=config)
+    pairwise_df, clustered_df = run(
+        input_df=input_df, output_dir=output_dir, config=config
+    )
 
     if pairwise_df.empty and clustered_df.empty:
         raise click.ClickException(
@@ -262,7 +264,9 @@ def audit_false_negatives(
     if results_dir is None:
         results_dir = _DEFAULT_RESULTS / config.entity_type
     input_df, pairwise_df, clustered_df = _load_results(results_dir, config)
-    run_false_negatives(input_df, pairwise_df, clustered_df, results_dir, config, sample_n)
+    run_false_negatives(
+        input_df, pairwise_df, clustered_df, results_dir, config, sample_n
+    )
 
 
 if __name__ == "__main__":

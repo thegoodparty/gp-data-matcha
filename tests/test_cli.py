@@ -1,3 +1,4 @@
+# tests/test_cli.py
 """Unit tests for the CLI entrypoint."""
 
 from pathlib import Path
@@ -11,7 +12,7 @@ from scripts.cli import cli
 DUMMY_CSV = Path(__file__).parent / "dummy_data.csv"
 
 
-def _fake_run(input_df, output_dir):
+def _fake_run(input_df, output_dir, config):
     """Return minimal pairwise + clustered DataFrames without running Splink."""
     pairwise = pd.DataFrame(
         {
@@ -32,7 +33,7 @@ def _fake_run(input_df, output_dir):
     # Write the CSVs that the real pipeline would produce
     output_dir.mkdir(parents=True, exist_ok=True)
     pairwise.to_csv(output_dir / "pairwise_predictions.csv", index=False)
-    clustered.to_csv(output_dir / "clustered_candidacies.csv", index=False)
+    clustered.to_csv(output_dir / config.clustered_output_name, index=False)
     return pairwise, clustered
 
 
@@ -45,7 +46,7 @@ def test_help():
 def test_match_help():
     result = CliRunner().invoke(cli, ["match", "--help"])
     assert result.exit_code == 0
-    assert "--input" in result.output
+    assert "--entity-type" in result.output
 
 
 @patch("scripts.cli.run", side_effect=_fake_run)
@@ -53,7 +54,15 @@ def test_match_with_csv(mock_run, tmp_path):
     """match subcommand reads a CSV, calls run(), and writes output."""
     result = CliRunner().invoke(
         cli,
-        ["match", "--input", str(DUMMY_CSV), "--output-dir", str(tmp_path)],
+        [
+            "match",
+            "--entity-type",
+            "candidacy",
+            "--input",
+            str(DUMMY_CSV),
+            "--output-dir",
+            str(tmp_path),
+        ],
     )
     assert result.exit_code == 0, f"CLI failed:\n{result.output}\n{result.exception}"
     mock_run.assert_called_once()
@@ -67,12 +76,21 @@ def test_match_with_csv(mock_run, tmp_path):
 @patch("scripts.cli.run", side_effect=_fake_run)
 def test_match_missing_file(mock_run):
     """match fails gracefully when input file doesn't exist."""
-    result = CliRunner().invoke(cli, ["match", "--input", "/nonexistent/file.csv"])
+    result = CliRunner().invoke(
+        cli,
+        ["match", "--entity-type", "candidacy", "--input", "/nonexistent/file.csv"],
+    )
     assert result.exit_code != 0
+
+
+def test_match_defaults_to_candidacy():
+    """match defaults to candidacy entity type when --entity-type is omitted."""
+    result = CliRunner().invoke(cli, ["match", "--help"])
+    assert "candidacy" in result.output  # default is visible in help
 
 
 def test_match_requires_input():
     """match fails when --input is not provided."""
-    result = CliRunner().invoke(cli, ["match"])
+    result = CliRunner().invoke(cli, ["match", "--entity-type", "candidacy"])
     assert result.exit_code != 0
     assert "Missing option" in result.output or "required" in result.output.lower()
