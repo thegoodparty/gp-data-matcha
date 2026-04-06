@@ -57,6 +57,4 @@ def get_config(entity_type: str) -> EntityConfig:
         from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
 
         return ELECTED_OFFICIAL_CONFIG
-    raise ValueError(
-        f"Unknown entity type '{entity_type}'. Available: {ENTITY_TYPES}"
-    )
+    raise ValueError(f"Unknown entity type '{entity_type}'. Available: {ENTITY_TYPES}")
