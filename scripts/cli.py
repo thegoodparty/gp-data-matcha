@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from scripts.databricks_io import is_databricks_fqn, read_table, write_table
-from scripts.entity_config import EntityConfig, get_config
+from scripts.entity_config import ENTITY_TYPES, EntityConfig, get_config
 from scripts.pipeline import run
 
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +26,7 @@ _ENTITY_TYPE_OPTION = click.option(
     "--entity-type",
     "entity_type",
     default="candidacy",
-    type=click.Choice(["candidacy", "elected_official"], case_sensitive=False),
+    type=click.Choice(ENTITY_TYPES, case_sensitive=False),
     help="Entity type to match (default: candidacy).",
 )
 
@@ -187,6 +187,13 @@ def match(
 # ── Audit subcommands ──
 
 
+def _resolve_results_dir(results_dir: Path | None, config: EntityConfig) -> Path:
+    """Default results_dir to results/<entity_type>/ when not provided."""
+    if results_dir is not None:
+        return results_dir
+    return _DEFAULT_RESULTS / config.entity_type
+
+
 @cli.group()
 def audit():
     """Audit match results for quality."""
@@ -205,8 +212,7 @@ def audit_summary(entity_type: str, results_dir: Path | None) -> None:
     from scripts.audit_summary import run_summary
 
     config = get_config(entity_type)
-    if results_dir is None:
-        results_dir = _DEFAULT_RESULTS / config.entity_type
+    results_dir = _resolve_results_dir(results_dir, config)
     input_df, pairwise_df, clustered_df = _load_results(results_dir, config)
     run_summary(input_df, pairwise_df, clustered_df, results_dir)
 
@@ -233,8 +239,7 @@ def audit_low_confidence(
     from scripts.audit_low_confidence import run_low_confidence
 
     config = get_config(entity_type)
-    if results_dir is None:
-        results_dir = _DEFAULT_RESULTS / config.entity_type
+    results_dir = _resolve_results_dir(results_dir, config)
     _, pairwise_df, _ = _load_results(results_dir, config)
     run_low_confidence(pairwise_df, results_dir, config, sample_n)
 
@@ -261,8 +266,7 @@ def audit_false_negatives(
     from scripts.audit_false_negatives import run_false_negatives
 
     config = get_config(entity_type)
-    if results_dir is None:
-        results_dir = _DEFAULT_RESULTS / config.entity_type
+    results_dir = _resolve_results_dir(results_dir, config)
     input_df, pairwise_df, clustered_df = _load_results(results_dir, config)
     run_false_negatives(
         input_df, pairwise_df, clustered_df, results_dir, config, sample_n

@@ -1,9 +1,13 @@
 # tests/test_pipeline.py
 """Tests for pipeline.load_and_prepare."""
 
+from pathlib import Path
+
 import pandas as pd
+
 from scripts.configs.candidacy import CANDIDACY_CONFIG
-from scripts.pipeline import load_and_prepare
+from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
+from scripts.pipeline import build_settings, load_and_prepare, run
 
 
 def _make_input(rows: list[dict]) -> pd.DataFrame:
@@ -87,9 +91,6 @@ def test_load_and_prepare_aliases_parsed():
 
 # ── Elected Officials tests ──
 
-from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
-from scripts.pipeline import build_settings
-
 
 def _make_eo_input(rows: list[dict]) -> pd.DataFrame:
     """Build a minimal elected officials prematch DataFrame."""
@@ -142,10 +143,6 @@ def test_build_settings_elected_official():
 
 
 # ── E2E Smoke Test ──
-
-from pathlib import Path
-
-from scripts.pipeline import run
 
 
 def test_eo_pipeline_smoke(tmp_path):

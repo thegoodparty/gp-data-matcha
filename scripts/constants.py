@@ -13,3 +13,27 @@ OFFICE_STOP_WORDS = (
     "'house','representatives','legislature','legislative','metro',"
     "'and','for','no.','odd','unexpired'"
 )
+
+# Shared post-prediction filter: requires name + identity signal + office overlap.
+# Each config can extend this with entity-specific clauses.
+BASE_POST_PREDICTION_FILTER = f"""
+    gamma_last_name > 0
+      AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
+      AND (
+        gamma_official_office_name > 0
+        OR list_has_any(
+          list_filter(
+            string_split(lower(official_office_name_l), ' '),
+            x -> len(x) > 1
+              AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
+              AND NOT regexp_matches(x, '^\\d+$')
+          ),
+          list_filter(
+            string_split(lower(official_office_name_r), ' '),
+            x -> len(x) > 1
+              AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
+              AND NOT regexp_matches(x, '^\\d+$')
+          )
+        )
+      )
+"""

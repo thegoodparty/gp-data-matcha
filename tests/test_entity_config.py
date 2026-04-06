@@ -1,38 +1,35 @@
 # tests/test_entity_config.py
 """Tests for EntityConfig and the config registry."""
 
+import pytest
+
 from scripts.entity_config import EntityConfig, get_config
+
+
+def _minimal_config(**overrides) -> EntityConfig:
+    """Build an EntityConfig with minimal required fields, plus any overrides."""
+    defaults = dict(
+        entity_type="test",
+        display_name="Test",
+        default_input_table="catalog.schema.table",
+        comparisons=[],
+        blocking_rules_for_prediction=[],
+        additional_columns_to_retain=[],
+        em_training_blocks=[],
+    )
+    return EntityConfig(**{**defaults, **overrides})
 
 
 def test_entity_config_is_frozen():
     """EntityConfig instances are immutable."""
-    config = EntityConfig(
-        entity_type="test",
-        display_name="Test",
-        default_input_table="catalog.schema.table",
-        comparisons=[],
-        blocking_rules_for_prediction=[],
-        additional_columns_to_retain=[],
-        em_training_blocks=[],
-    )
-    try:
+    config = _minimal_config()
+    with pytest.raises(AttributeError):
         config.entity_type = "changed"
-        assert False, "Should have raised FrozenInstanceError"
-    except AttributeError:
-        pass
 
 
 def test_entity_config_defaults():
     """Default values are set correctly."""
-    config = EntityConfig(
-        entity_type="test",
-        display_name="Test",
-        default_input_table="catalog.schema.table",
-        comparisons=[],
-        blocking_rules_for_prediction=[],
-        additional_columns_to_retain=[],
-        em_training_blocks=[],
-    )
+    config = _minimal_config()
     assert config.predict_threshold == 0.01
     assert config.cluster_threshold == 0.95
     assert config.post_prediction_filters == []
@@ -105,7 +102,5 @@ def test_get_config_registry():
 
 def test_get_config_unknown():
     """get_config raises ValueError for unknown entity types."""
-    import pytest
-
     with pytest.raises(ValueError, match="Unknown entity type"):
         get_config("nonexistent")

@@ -7,7 +7,7 @@ from splink import block_on
 from splink.blocking_rule_library import CustomRule
 from splink.comparison_library import CustomComparison
 
-from scripts.constants import OFFICE_STOP_WORDS
+from scripts.constants import BASE_POST_PREDICTION_FILTER
 from scripts.entity_config import EntityConfig
 
 CANDIDACY_CONFIG = EntityConfig(
@@ -86,33 +86,17 @@ CANDIDACY_CONFIG = EntityConfig(
     cluster_threshold=0.95,
     date_columns=["election_date"],
     clustered_output_name="clustered_candidacies.csv",
-    post_prediction_filters=[f"""
-        gamma_last_name > 0
-          AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
-          AND (
-            gamma_official_office_name > 0
-            OR list_has_any(
-              list_filter(
-                string_split(lower(official_office_name_l), ' '),
-                x -> len(x) > 1
-                  AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-                  AND NOT regexp_matches(x, '^\\d+$')
-              ),
-              list_filter(
-                string_split(lower(official_office_name_r), ' '),
-                x -> len(x) > 1
-                  AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-                  AND NOT regexp_matches(x, '^\\d+$')
-              )
-            )
-          )
-          AND NOT (
+    post_prediction_filters=[
+        BASE_POST_PREDICTION_FILTER,
+        """
+          NOT (
             br_race_id_l IS NOT NULL
             AND br_race_id_r IS NOT NULL
             AND br_race_id_l != br_race_id_r
             AND gamma_official_office_name < 2
           )
-        """],
+        """,
+    ],
     audit_display_columns=[
         "source_name",
         "unique_id",
