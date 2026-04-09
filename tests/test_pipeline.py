@@ -2,8 +2,10 @@
 """Tests for pipeline.load_and_prepare."""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
 from scripts.configs.candidacy import CANDIDACY_CONFIG
 from scripts.configs.elected_official import ELECTED_OFFICIAL_CONFIG
@@ -226,3 +228,50 @@ def test_eo_pipeline_smoke_token_overlap_preserved(tmp_path):
         or ((pairwise_df["unique_id_l"] == "ts_010") & (pairwise_df["unique_id_r"] == "br_012")).any()
     )
     assert pair_exists, "br_012/ts_010 pair should survive via locality-token overlap"
+
+
+def test_train_model_fails_when_all_blocks_fail():
+    """train_model raises RuntimeError if every EM block fails."""
+    from scripts.pipeline import train_model
+
+    mock_linker = MagicMock()
+    mock_linker.training.estimate_parameters_using_expectation_maximisation.side_effect = (
+        RuntimeError("EM failed")
+    )
+
+    with pytest.raises(RuntimeError, match="EM training failed for all"):
+        train_model(mock_linker, CANDIDACY_CONFIG)
+
+
+def test_train_model_continues_on_partial_failure(capsys):
+    """train_model warns but continues if some (not all) EM blocks fail."""
+    from scripts.pipeline import train_model
+
+    mock_linker = MagicMock()
+    call_count = 0
+
+    def side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("EM failed for first block")
+
+    mock_linker.training.estimate_parameters_using_expectation_maximisation.side_effect = (
+        side_effect
+    )
+
+    result = train_model(mock_linker, CANDIDACY_CONFIG)
+
+    assert result == len(CANDIDACY_CONFIG.em_training_blocks) - 1
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "EM training blocks succeeded:" in captured.out
+
+
+def test_train_model_returns_full_count_on_success():
+    """train_model returns the full count when all EM blocks succeed."""
+    from scripts.pipeline import train_model
+
+    mock_linker = MagicMock()
+    result = train_model(mock_linker, CANDIDACY_CONFIG)
+    assert result == len(CANDIDACY_CONFIG.em_training_blocks)

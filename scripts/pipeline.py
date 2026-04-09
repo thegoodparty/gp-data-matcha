@@ -58,17 +58,34 @@ def build_settings(config: EntityConfig) -> SettingsCreator:
     )
 
 
-def train_model(linker: Linker, config: EntityConfig) -> None:
-    """Estimate u via random sampling, then m via EM on each comparison column."""
+def train_model(linker: Linker, config: EntityConfig) -> int:
+    """Estimate u via random sampling, then m via EM. Returns count of successful blocks."""
     linker.training.estimate_u_using_random_sampling(max_pairs=5_000_000)
+
+    successful_blocks = 0
+    last_error = None
+
     for cols in config.em_training_blocks:
         try:
             linker.training.estimate_parameters_using_expectation_maximisation(
                 block_on(*cols), fix_u_probabilities=True
             )
+            successful_blocks += 1
         except Exception as e:
+            last_error = e
             print(f"WARNING: EM training on {cols} failed: {e}")
             print("Continuing with remaining training blocks...")
+
+    print(
+        f"EM training blocks succeeded: {successful_blocks}/{len(config.em_training_blocks)}"
+    )
+
+    if successful_blocks == 0:
+        raise RuntimeError(
+            f"EM training failed for all {len(config.em_training_blocks)} configured blocks."
+        ) from last_error
+
+    return successful_blocks
 
 
 def predict_and_cluster(
