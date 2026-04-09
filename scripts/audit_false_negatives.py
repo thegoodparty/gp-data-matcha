@@ -24,6 +24,43 @@ def _name_similar(a: str | None, b: str | None, threshold: float = 0.88) -> bool
     return JaroWinkler.similarity(a, b) >= threshold
 
 
+def _canonicalize_pair_key(id_l: str, id_r: str) -> tuple[str, str]:
+    """Return a sorted pair key for orientation-independent lookup."""
+    return (min(id_l, id_r), max(id_l, id_r))
+
+
+def _classify_pair(
+    id_l: str,
+    id_r: str,
+    pairwise_keys: set[tuple[str, str]],
+    filtered_keys: set[tuple[str, str]] | None,
+) -> str:
+    """Classify a pair into one of three states."""
+    key = _canonicalize_pair_key(id_l, id_r)
+    if key in pairwise_keys:
+        return "generated_and_kept"
+    if filtered_keys is not None and key in filtered_keys:
+        return "generated_but_filtered"
+    return "never_generated"
+
+
+def _load_filtered_keys(results_dir: Path) -> set[tuple[str, str]] | None:
+    """Load canonicalized pair keys from filtered_pairs.csv, or None if missing."""
+    filtered_path = results_dir / "filtered_pairs.csv"
+    if not filtered_path.exists():
+        print(
+            "WARNING: filtered_pairs.csv not found — cannot distinguish filtered "
+            "pairs from blocking misses. Rerun the match pipeline for full "
+            "3-state classification."
+        )
+        return None
+    filtered_df = pd.read_csv(filtered_path, dtype=str)
+    return {
+        _canonicalize_pair_key(row["unique_id_l"], row["unique_id_r"])
+        for _, row in filtered_df.iterrows()
+    }
+
+
 def run_false_negatives(
     input_df: pd.DataFrame,
     pairwise_df: pd.DataFrame,
@@ -43,10 +80,15 @@ def run_false_negatives(
     providers = sorted(input_df["source_name"].unique())
     print(f"Providers: {providers}")
 
-    # Check if suspicious pairs were generated but fell below the clustering threshold
-    pairwise_ids = set()
+    # Build canonicalized pair key sets for 3-state classification
+    pairwise_keys = set()
     if len(pairwise_df) > 0 and "unique_id_l" in pairwise_df.columns:
-        pairwise_ids = set(zip(pairwise_df["unique_id_l"], pairwise_df["unique_id_r"]))
+        pairwise_keys = {
+            _canonicalize_pair_key(row["unique_id_l"], row["unique_id_r"])
+            for _, row in pairwise_df[["unique_id_l", "unique_id_r"]].iterrows()
+        }
+
+    filtered_keys = _load_filtered_keys(results_dir)
 
     # Pre-group input_df for O(1) candidate lookups
     group_cols = config.false_negative_group_cols
@@ -65,7 +107,6 @@ def run_false_negatives(
         if pd.isna(s_last):
             continue
 
-        # Build the lookup key from the same group columns
         try:
             lookup_key_parts = []
             for col in group_cols:
@@ -74,12 +115,10 @@ def run_false_negatives(
                     break
                 lookup_key_parts.append(val)
             else:
-                # All group cols were non-null
                 for other_provider in providers:
                     if other_provider == s_provider:
                         continue
 
-                    # Replace the source_name in the key with the other provider
                     other_key = tuple(
                         other_provider if col == "source_name" else part
                         for col, part in zip(group_cols, lookup_key_parts)
@@ -111,13 +150,14 @@ def run_false_negatives(
                         if not (first_ok or email_ok or phone_ok):
                             continue
 
-                        pair_key = (singleton["unique_id"], cand["unique_id"])
-                        was_generated = (
-                            pair_key in pairwise_ids
-                            or (pair_key[1], pair_key[0]) in pairwise_ids
+                        pair_status = _classify_pair(
+                            singleton["unique_id"],
+                            cand["unique_id"],
+                            pairwise_keys,
+                            filtered_keys,
                         )
 
-                        row = {"was_in_pairwise_predictions": was_generated}
+                        row = {"pair_status": pair_status}
                         for col in config.audit_display_columns:
                             row[f"{col}_l"] = singleton.get(col)
                             row[f"{col}_r"] = cand.get(col)
@@ -138,13 +178,11 @@ def run_false_negatives(
     out_df.to_csv(out_path, index=False)
 
     # Diagnostics
-    in_pw = out_df["was_in_pairwise_predictions"].sum()
-    not_in_pw = len(out_df) - in_pw
-    print(f"\nSuspicious non-matches found: {len(out_df)}")
-    print(
-        f"  Were in pairwise predictions (model scored but below cluster threshold): {in_pw}"
-    )
-    print(f"  NOT in pairwise predictions (blocking rules missed them): {not_in_pw}")
+    if "pair_status" in out_df.columns:
+        status_counts = out_df["pair_status"].value_counts()
+        print(f"\nSuspicious non-matches found: {len(out_df)}")
+        for status, count in status_counts.items():
+            print(f"  {status}: {count}")
     print(f"\nWritten to {out_path}")
 
     return out_df
