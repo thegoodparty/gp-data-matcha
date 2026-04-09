@@ -7,7 +7,7 @@ from splink import block_on
 from splink.blocking_rule_library import CustomRule
 from splink.comparison_library import CustomComparison
 
-from scripts.constants import BASE_POST_PREDICTION_FILTER
+from scripts.constants import EO_POST_PREDICTION_FILTER
 from scripts.entity_config import EntityConfig
 
 ELECTED_OFFICIAL_CONFIG = EntityConfig(
@@ -93,7 +93,7 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
     cluster_threshold=0.95,
     date_columns=[],
     clustered_output_name="clustered_elected_officials.csv",
-    post_prediction_filters=[BASE_POST_PREDICTION_FILTER],
+    post_prediction_filters=[EO_POST_PREDICTION_FILTER],
     audit_display_columns=[
         "source_name",
         "unique_id",

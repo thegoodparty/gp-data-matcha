@@ -169,3 +169,60 @@ def test_eo_pipeline_smoke(tmp_path):
     # EO-specific retained columns present in clustered output
     for col in ["source_name", "office_type", "office_level"]:
         assert col in clustered_df.columns, f"Missing retained column: {col}"
+
+
+def test_eo_pipeline_smoke_synonym_match(tmp_path):
+    """br_006 (City Alderperson) and ts_004 (Springfield City Council) must cluster together."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    pairwise_df, clustered_df = run(
+        input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG
+    )
+
+    br_006_cluster = clustered_df.loc[
+        clustered_df["unique_id"] == "br_006", "cluster_id"
+    ]
+    assert len(br_006_cluster) == 1, "br_006 not found in clustered output"
+
+    ts_004_cluster = clustered_df.loc[
+        clustered_df["unique_id"] == "ts_004", "cluster_id"
+    ]
+    assert len(ts_004_cluster) == 1, "ts_004 not found in clustered output"
+    assert (
+        br_006_cluster.iloc[0] == ts_004_cluster.iloc[0]
+    ), "br_006 and ts_004 should be in the same cluster (City Alderperson == City Council)"
+
+
+def test_eo_pipeline_smoke_rejects_cross_office_same_name(tmp_path):
+    """Same name + same state but different office_type and no contact match must not cluster."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    _, clustered_df = run(
+        input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG
+    )
+
+    br_010_cluster = clustered_df.loc[
+        clustered_df["unique_id"] == "br_010", "cluster_id"
+    ]
+    ts_005_cluster = clustered_df.loc[
+        clustered_df["unique_id"] == "ts_005", "cluster_id"
+    ]
+    assert len(br_010_cluster) == 1, "br_010 not found in clustered output"
+    assert len(ts_005_cluster) == 1, "ts_005 not found in clustered output"
+    assert (
+        br_010_cluster.iloc[0] != ts_005_cluster.iloc[0]
+    ), "James Wilson (School Board) and James Wilson (City Council) should NOT cluster"
+
+
+def test_eo_pipeline_smoke_token_overlap_preserved(tmp_path):
+    """Pairs rescued by locality-token overlap (no contact, no office_type match) must still match."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    pairwise_df, _ = run(
+        input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG
+    )
+
+    # br_012/ts_010: "hamilton county: springdale township trustee" vs "springdale village council"
+    # JW < 0.75, different office_type, no email/phone — rescued by shared "springdale" token
+    pair_exists = (
+        ((pairwise_df["unique_id_l"] == "br_012") & (pairwise_df["unique_id_r"] == "ts_010")).any()
+        or ((pairwise_df["unique_id_l"] == "ts_010") & (pairwise_df["unique_id_r"] == "br_012")).any()
+    )
+    assert pair_exists, "br_012/ts_010 pair should survive via locality-token overlap"

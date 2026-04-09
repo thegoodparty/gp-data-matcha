@@ -17,3 +17,7 @@ ts_006,techspeed,ts_s006,Patricia,Taylor,"[""patricia"",""pat""]",IL,Republican,
 ts_007,techspeed,ts_s007,Michael,Smith,"[""michael"",""mike""]",WI,Independent,,,City Council Member,District 2,City Council,Local,City Council Member,District 2,Madison,2023-01-01,2027-01-01,,,,ts_p007
 ts_008,techspeed,ts_s008,Karen,Lee,"[""karen""]",WI,Republican,,,County Board Supervisor,District 7,County Board,Local,County Board Supervisor,District 7,Waukesha,2022-04-01,2026-04-01,,,,ts_p008
 ts_009,techspeed,ts_s009,Charles,Davis,"[""charles"",""chuck""]",WI,Democratic,cdavis@example.com,5551112222,Mayor,,Mayor,Local,Mayor,,Janesville,2022-04-01,2026-04-01,,,,ts_p009
+br_010,ballotready,br_s010,James,Wilson,"[""james"",""jim""]",WI,Democratic,,,Appleton School Board,,School Board,Local,School Board Member,,Appleton,2023-07-01,2026-07-01,boh_010,bc_010,,
+br_011,ballotready,br_s011,Maria,Garcia,"[""maria""]",IL,Democratic,,,Springfield Board of Education,District 42,School Board,State,School Board Member,42nd District,Springfield,2023-01-01,2025-01-01,boh_011,bc_011,,
+br_012,ballotready,br_s012,Samuel,Lee,"[""samuel"",""sam""]",OH,Republican,,,hamilton county: springdale township trustee,Hamilton County,Township,Township,Township Trustee,,Springdale,2023-01-01,2027-01-01,boh_012,bc_012,,
+ts_010,techspeed,ts_s010,Samuel,Lee,"[""samuel"",""sam""]",OH,Republican,,,springdale village council,Hamilton County,Village Council,Local,Village Council Member,,Springdale,2023-01-01,2027-01-01,,,,ts_p010
