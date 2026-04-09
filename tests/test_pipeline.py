@@ -224,9 +224,12 @@ def test_eo_pipeline_smoke_token_overlap_preserved(tmp_path):
     # br_012/ts_010: "hamilton county: springdale township trustee" vs "springdale village council"
     # JW < 0.75, different office_type, no email/phone — rescued by shared "springdale" token
     pair_exists = (
-        ((pairwise_df["unique_id_l"] == "br_012") & (pairwise_df["unique_id_r"] == "ts_010")).any()
-        or ((pairwise_df["unique_id_l"] == "ts_010") & (pairwise_df["unique_id_r"] == "br_012")).any()
-    )
+        (pairwise_df["unique_id_l"] == "br_012")
+        & (pairwise_df["unique_id_r"] == "ts_010")
+    ).any() or (
+        (pairwise_df["unique_id_l"] == "ts_010")
+        & (pairwise_df["unique_id_r"] == "br_012")
+    ).any()
     assert pair_exists, "br_012/ts_010 pair should survive via locality-token overlap"
 
 
@@ -235,8 +238,8 @@ def test_train_model_fails_when_all_blocks_fail():
     from scripts.pipeline import train_model
 
     mock_linker = MagicMock()
-    mock_linker.training.estimate_parameters_using_expectation_maximisation.side_effect = (
-        RuntimeError("EM failed")
+    mock_linker.training.estimate_parameters_using_expectation_maximisation.side_effect = RuntimeError(
+        "EM failed"
     )
 
     with pytest.raises(RuntimeError, match="EM training failed for all"):
@@ -293,6 +296,6 @@ def test_eo_pipeline_writes_filtered_pairs(tmp_path):
 
     # Pair keys should be canonicalized (unique_id_l < unique_id_r)
     for _, row in filtered_df.iterrows():
-        assert row["unique_id_l"] <= row["unique_id_r"], (
-            f"Pair keys not canonicalized: {row['unique_id_l']} > {row['unique_id_r']}"
-        )
+        assert (
+            row["unique_id_l"] <= row["unique_id_r"]
+        ), f"Pair keys not canonicalized: {row['unique_id_l']} > {row['unique_id_r']}"

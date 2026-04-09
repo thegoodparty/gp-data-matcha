@@ -141,15 +141,22 @@ def predict_and_cluster(
 
             # Canonicalize pair keys: ensure unique_id_l < unique_id_r
             swap = filtered_out["unique_id_l"] > filtered_out["unique_id_r"]
-            filtered_out.loc[swap, ["unique_id_l", "unique_id_r"]] = (
-                filtered_out.loc[swap, ["unique_id_r", "unique_id_l"]].values
+            filtered_out.loc[swap, ["unique_id_l", "unique_id_r"]] = filtered_out.loc[
+                swap, ["unique_id_r", "unique_id_l"]
+            ].values
+            filtered_out = filtered_out.rename(
+                columns={
+                    "match_probability": "match_probability_pre_filter",
+                    "match_weight": "match_weight_pre_filter",
+                }
             )
-            filtered_out = filtered_out.rename(columns={
-                "match_probability": "match_probability_pre_filter",
-                "match_weight": "match_weight_pre_filter",
-            })
             filtered_out[
-                ["unique_id_l", "unique_id_r", "match_probability_pre_filter", "match_weight_pre_filter"]
+                [
+                    "unique_id_l",
+                    "unique_id_r",
+                    "match_probability_pre_filter",
+                    "match_weight_pre_filter",
+                ]
             ].to_csv(output_dir / "filtered_pairs.csv", index=False)
 
     pairwise_df = predictions.as_pandas_dataframe()
@@ -163,9 +170,7 @@ def predict_and_cluster(
     clustered_df = clusters.as_pandas_dataframe()
 
     n_matched = (clustered_df.groupby("cluster_id").size() > 1).sum()
-    n_cross = (
-        clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1
-    ).sum()
+    n_cross = (clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1).sum()
     print(f"Matched clusters: {n_matched:,}  |  Cross-source: {n_cross:,}")
     if (within := n_matched - n_cross) > 0:
         print(f"WARNING: {within} within-source duplicate clusters found")
@@ -181,6 +186,7 @@ def save_results(
     config: EntityConfig,
 ) -> None:
     """Write CSVs and diagnostic charts."""
+
     def to_json(v):
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return "[]"
