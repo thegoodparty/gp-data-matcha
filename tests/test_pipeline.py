@@ -233,6 +233,29 @@ def test_eo_pipeline_smoke_token_overlap_preserved(tmp_path):
     assert pair_exists, "br_012/ts_010 pair should survive via locality-token overlap"
 
 
+def test_eo_pipeline_smoke_contact_bypass(tmp_path):
+    """Contact-confirmed pairs bypass office compatibility — survive post-prediction filter."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    pairwise_df, _ = run(
+        input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG
+    )
+
+    # br_005 (Linda Brown, County Clerk, office_type=County) and ts_011 (Linda Brown,
+    # County Board Supervisor, office_type=County Board) share phone but have different
+    # office_type, different office title, and no locality-token overlap.
+    # The pair must survive post-prediction filtering via gamma_phone > 0 bypass.
+    # (On tiny fixture data the match probability is too low to cluster, but the
+    # filter must not be the reason it fails — that's what this test proves.)
+    pair_exists = (
+        (pairwise_df["unique_id_l"] == "br_005")
+        & (pairwise_df["unique_id_r"] == "ts_011")
+    ).any() or (
+        (pairwise_df["unique_id_l"] == "ts_011")
+        & (pairwise_df["unique_id_r"] == "br_005")
+    ).any()
+    assert pair_exists, "br_005/ts_011 pair should survive filter via phone bypass"
+
+
 def test_train_model_fails_when_all_blocks_fail():
     """train_model raises RuntimeError if every EM block fails."""
     from scripts.pipeline import train_model

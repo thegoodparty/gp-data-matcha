@@ -38,14 +38,17 @@ BASE_POST_PREDICTION_FILTER = f"""
       )
 """
 
-# EO-specific post-prediction filter: adds office_type as a fallback for
-# cross-source office title synonyms (e.g. "City Alderperson" vs "City Council").
+# EO-specific post-prediction filter: adds contact-info bypass and office_type
+# fallback for cross-source office title synonyms. Contact-confirmed pairs
+# (email or phone match) skip office checks entirely since identity is established.
 # Does NOT include the candidacy-specific br_race_id guard.
 EO_POST_PREDICTION_FILTER = f"""
     gamma_last_name > 0
       AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
       AND (
-        gamma_official_office_name > 0
+        gamma_email > 0
+        OR gamma_phone > 0
+        OR gamma_official_office_name > 0
         OR list_has_any(
           list_filter(
             string_split(lower(official_office_name_l), ' '),

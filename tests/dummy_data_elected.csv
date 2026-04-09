@@ -21,3 +21,4 @@ br_010,ballotready,br_s010,James,Wilson,"[""james"",""jim""]",WI,Democratic,,,Ap
 br_011,ballotready,br_s011,Maria,Garcia,"[""maria""]",IL,Democratic,,,Springfield Board of Education,District 42,School Board,State,School Board Member,42nd District,Springfield,2023-01-01,2025-01-01,boh_011,bc_011,,
 br_012,ballotready,br_s012,Samuel,Lee,"[""samuel"",""sam""]",OH,Republican,,,hamilton county: springdale township trustee,Hamilton County,Township,Township,Township Trustee,,Springdale,2023-01-01,2027-01-01,boh_012,bc_012,,
 ts_010,techspeed,ts_s010,Samuel,Lee,"[""samuel"",""sam""]",OH,Republican,,,springdale village council,Hamilton County,Village Council,Local,Village Council Member,,Springdale,2023-01-01,2027-01-01,,,,ts_p010
+ts_011,techspeed,ts_s011,Linda,Brown,"[""linda""]",WI,Democratic,,5556667777,Dane County Board Supervisor,District 5,County Board,Local,County Board Supervisor,District 5,Dane,2022-01-01,2026-01-01,,,,ts_p011
