@@ -89,7 +89,7 @@ def train_model(linker: Linker, config: EntityConfig) -> int:
 
 
 def predict_and_cluster(
-    linker: Linker, config: EntityConfig
+    linker: Linker, config: EntityConfig, output_dir: Path | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Predict matches, apply post-prediction filters, cluster."""
     predictions = linker.inference.predict(
@@ -108,6 +108,14 @@ def predict_and_cluster(
 
     # Apply post-prediction filters from config
     if config.post_prediction_filters:
+        # Capture pre-filter pair IDs + scores for the filtered-pairs sidecar
+        pre_filter_pairs = None
+        if output_dir is not None:
+            pre_filter_pairs = linker._db_api._con.execute(f"""
+                SELECT unique_id_l, unique_id_r, match_probability, match_weight
+                FROM {pred_table}
+            """).fetchdf()
+
         combined_filter = " AND ".join(
             f"({f.strip()})" for f in config.post_prediction_filters
         )
@@ -116,6 +124,33 @@ def predict_and_cluster(
             SELECT * FROM {pred_table}
             WHERE {combined_filter}
         """)
+
+        # Write filtered-out pairs sidecar
+        if output_dir is not None and pre_filter_pairs is not None:
+            post_filter_pairs = linker._db_api._con.execute(f"""
+                SELECT unique_id_l, unique_id_r
+                FROM {pred_table}
+            """).fetchdf()
+            post_keys = set(
+                zip(post_filter_pairs["unique_id_l"], post_filter_pairs["unique_id_r"])
+            )
+            filtered_mask = ~pre_filter_pairs.apply(
+                lambda r: (r["unique_id_l"], r["unique_id_r"]) in post_keys, axis=1
+            )
+            filtered_out = pre_filter_pairs[filtered_mask].copy()
+
+            # Canonicalize pair keys: ensure unique_id_l < unique_id_r
+            swap = filtered_out["unique_id_l"] > filtered_out["unique_id_r"]
+            filtered_out.loc[swap, ["unique_id_l", "unique_id_r"]] = (
+                filtered_out.loc[swap, ["unique_id_r", "unique_id_l"]].values
+            )
+            filtered_out = filtered_out.rename(columns={
+                "match_probability": "match_probability_pre_filter",
+                "match_weight": "match_weight_pre_filter",
+            })
+            filtered_out[
+                ["unique_id_l", "unique_id_r", "match_probability_pre_filter", "match_weight_pre_filter"]
+            ].to_csv(output_dir / "filtered_pairs.csv", index=False)
 
     pairwise_df = predictions.as_pandas_dataframe()
     dropped = pre_count - len(pairwise_df)
@@ -128,7 +163,9 @@ def predict_and_cluster(
     clustered_df = clusters.as_pandas_dataframe()
 
     n_matched = (clustered_df.groupby("cluster_id").size() > 1).sum()
-    n_cross = (clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1).sum()
+    n_cross = (
+        clustered_df.groupby("cluster_id")["source_dataset"].nunique() > 1
+    ).sum()
     print(f"Matched clusters: {n_matched:,}  |  Cross-source: {n_cross:,}")
     if (within := n_matched - n_cross) > 0:
         print(f"WARNING: {within} within-source duplicate clusters found")
@@ -144,8 +181,6 @@ def save_results(
     config: EntityConfig,
 ) -> None:
     """Write CSVs and diagnostic charts."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     def to_json(v):
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return "[]"
@@ -185,10 +220,11 @@ def run(
     input_df: pd.DataFrame, output_dir: Path, config: EntityConfig
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Prepare data, train, predict, cluster, save. Returns (pairwise_df, clustered_df)."""
+    output_dir.mkdir(parents=True, exist_ok=True)
     source_dfs = load_and_prepare(input_df, config)
     settings = build_settings(config)
     linker = Linker(source_dfs, settings, DuckDBAPI())
     train_model(linker, config)
-    pairwise_df, clustered_df = predict_and_cluster(linker, config)
+    pairwise_df, clustered_df = predict_and_cluster(linker, config, output_dir)
     save_results(linker, pairwise_df, clustered_df, output_dir, config)
     return pairwise_df, clustered_df

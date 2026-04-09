@@ -275,3 +275,24 @@ def test_train_model_returns_full_count_on_success():
     mock_linker = MagicMock()
     result = train_model(mock_linker, CANDIDACY_CONFIG)
     assert result == len(CANDIDACY_CONFIG.em_training_blocks)
+
+
+def test_eo_pipeline_writes_filtered_pairs(tmp_path):
+    """Pipeline writes filtered_pairs.csv with pairs removed by post-prediction filters."""
+    df = pd.read_csv(Path(__file__).parent / "dummy_data_elected.csv", dtype=str)
+    run(input_df=df, output_dir=tmp_path, config=ELECTED_OFFICIAL_CONFIG)
+
+    filtered_path = tmp_path / "filtered_pairs.csv"
+    assert filtered_path.exists(), "filtered_pairs.csv should be written"
+
+    filtered_df = pd.read_csv(filtered_path)
+    assert "unique_id_l" in filtered_df.columns
+    assert "unique_id_r" in filtered_df.columns
+    assert "match_probability_pre_filter" in filtered_df.columns
+    assert "match_weight_pre_filter" in filtered_df.columns
+
+    # Pair keys should be canonicalized (unique_id_l < unique_id_r)
+    for _, row in filtered_df.iterrows():
+        assert row["unique_id_l"] <= row["unique_id_r"], (
+            f"Pair keys not canonicalized: {row['unique_id_l']} > {row['unique_id_r']}"
+        )
