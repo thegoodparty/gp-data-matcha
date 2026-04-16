@@ -8,7 +8,7 @@ user_invocable: true
 
 After an ER match run, audit the results for match quality. Work from the
 repo root directory. Default paths assume `results/<entity-type>/` for
-outputs. The `--entity-type` flag selects the config (`candidacy` or
+outputs. The `--entity-type` flag selects the config (`candidacy_stage` or
 `elected_official`).
 
 Run each step below sequentially. Read each output CSV after running the
@@ -22,11 +22,11 @@ automatically after matching, but you should still interpret the outputs.
 
 ```bash
 # Candidacy (from local CSV):
-uv run python -m scripts.cli match --entity-type candidacy --input data/input.csv
+uv run python -m scripts.cli match --entity-type candidacy_stage --input data/input.csv
 
 # Candidacy (from Databricks — the typical path):
-uv run python -m scripts.cli match --entity-type candidacy \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages
+uv run python -m scripts.cli match --entity-type candidacy_stage \
+  --input goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages
 
 # Elected officials:
 uv run python -m scripts.cli match --entity-type elected_official \
@@ -39,7 +39,7 @@ Requires `DATABRICKS_HTTP_PATH` env var for Databricks reads (see
 ## Step 1: Summary Statistics
 
 ```bash
-uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
+uv run python -m scripts.cli audit summary --entity-type candidacy_stage --results-dir results/candidacy_stage/
 ```
 
 Read `results/audit_summary.csv` and interpret the terminal output. Flag:
@@ -66,7 +66,7 @@ drill into that source specifically:
 ## Step 2: Low-Confidence Match Review
 
 ```bash
-uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/ --sample 20
+uv run python -m scripts.cli audit low-confidence --entity-type candidacy_stage --results-dir results/candidacy_stage/ --sample 20
 ```
 
 This finds the 20 pairs closest to 0.5 match probability — the model's most
@@ -84,7 +84,7 @@ Summarize your findings as:
 ## Step 3: False Negative Review
 
 ```bash
-uv run python -m scripts.cli audit false-negatives --entity-type candidacy --results-dir results/candidacy/ --sample 20
+uv run python -m scripts.cli audit false-negatives --entity-type candidacy_stage --results-dir results/candidacy_stage/ --sample 20
 ```
 
 Read `results/audit_false_negatives.csv`. For each suspicious non-match:
