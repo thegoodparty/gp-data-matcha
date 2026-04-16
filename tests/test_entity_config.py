@@ -42,7 +42,7 @@ def test_candidacy_config_comparisons():
     from scripts.configs.candidacy import CANDIDACY_CONFIG
 
     assert len(CANDIDACY_CONFIG.comparisons) == 9
-    assert CANDIDACY_CONFIG.entity_type == "candidacy"
+    assert CANDIDACY_CONFIG.entity_type == "candidacy_stage"
     assert CANDIDACY_CONFIG.clustered_output_name == "clustered_candidacies.csv"
 
 
@@ -93,8 +93,8 @@ def test_elected_official_config_no_race_id_blocking():
 
 def test_get_config_registry():
     """get_config returns the correct config for each entity type."""
-    c = get_config("candidacy")
-    assert c.entity_type == "candidacy"
+    c = get_config("candidacy_stage")
+    assert c.entity_type == "candidacy_stage"
 
     eo = get_config("elected_official")
     assert eo.entity_type == "elected_official"

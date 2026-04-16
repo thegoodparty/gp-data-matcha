@@ -21,7 +21,7 @@ def test_match_databricks_round_trip(databricks_tables):
         [
             "match",
             "--entity-type",
-            "candidacy",
+            "candidacy_stage",
             "--input",
             ctx["input_fqn"],
             "--output-cluster-table",

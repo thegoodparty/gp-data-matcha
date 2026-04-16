@@ -57,7 +57,7 @@ def test_match_with_csv(mock_run, tmp_path):
         [
             "match",
             "--entity-type",
-            "candidacy",
+            "candidacy_stage",
             "--input",
             str(DUMMY_CSV),
             "--output-dir",
@@ -78,20 +78,20 @@ def test_match_missing_file(mock_run):
     """match fails gracefully when input file doesn't exist."""
     result = CliRunner().invoke(
         cli,
-        ["match", "--entity-type", "candidacy", "--input", "/nonexistent/file.csv"],
+        ["match", "--entity-type", "candidacy_stage", "--input", "/nonexistent/file.csv"],
     )
     assert result.exit_code != 0
 
 
-def test_match_defaults_to_candidacy():
-    """match defaults to candidacy entity type when --entity-type is omitted."""
+def test_match_defaults_to_candidacy_stage():
+    """match defaults to candidacy_stage entity type when --entity-type is omitted."""
     result = CliRunner().invoke(cli, ["match", "--help"])
-    assert "candidacy" in result.output  # default is visible in help
+    assert "candidacy_stage" in result.output  # default is visible in help
 
 
 def test_match_requires_input():
     """match fails when --input is not provided."""
-    result = CliRunner().invoke(cli, ["match", "--entity-type", "candidacy"])
+    result = CliRunner().invoke(cli, ["match", "--entity-type", "candidacy_stage"])
     assert result.exit_code != 0
     assert "Missing option" in result.output or "required" in result.output.lower()
 
