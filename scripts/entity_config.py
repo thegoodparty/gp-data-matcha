@@ -43,13 +43,13 @@ class EntityConfig:
     false_negative_group_cols: list[str] = field(default_factory=list)
 
 
-ENTITY_TYPES: list[str] = ["candidacy", "elected_official"]
+ENTITY_TYPES: list[str] = ["candidacy_stage", "elected_official"]
 
 
 def get_config(entity_type: str) -> EntityConfig:
     """Look up an EntityConfig by name. Raises ValueError for unknown types."""
     # Import lazily to avoid circular imports during config construction
-    if entity_type == "candidacy":
+    if entity_type == "candidacy_stage":
         from scripts.configs.candidacy import CANDIDACY_CONFIG
 
         return CANDIDACY_CONFIG

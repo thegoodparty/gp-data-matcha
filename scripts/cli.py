@@ -3,9 +3,9 @@
 CLI entrypoint for entity resolution.
 
 Usage:
-    uv run python -m scripts.cli match --entity-type candidacy --input data/input.csv
+    uv run python -m scripts.cli match --entity-type candidacy_stage --input data/input.csv
     uv run python -m scripts.cli match --entity-type elected_official --input catalog.schema.table
-    uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
+    uv run python -m scripts.cli audit summary --entity-type candidacy_stage --results-dir results/candidacy_stage/
 """
 
 import json
@@ -25,9 +25,9 @@ _DEFAULT_RESULTS = _PROJECT_DIR / "results"
 _ENTITY_TYPE_OPTION = click.option(
     "--entity-type",
     "entity_type",
-    default="candidacy",
+    default="candidacy_stage",
     type=click.Choice(ENTITY_TYPES, case_sensitive=False),
-    help="Entity type to match (default: candidacy).",
+    help="Entity type to match (default: candidacy_stage).",
 )
 
 

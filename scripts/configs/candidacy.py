@@ -1,5 +1,5 @@
 # scripts/configs/candidacy.py
-"""Candidacy entity resolution config — extracted from pipeline.py."""
+"""Candidacy stage entity resolution config."""
 
 import splink.comparison_level_library as cll
 import splink.internals.comparison_library as cl
@@ -11,7 +11,7 @@ from scripts.constants import BASE_POST_PREDICTION_FILTER
 from scripts.entity_config import EntityConfig
 
 CANDIDACY_CONFIG = EntityConfig(
-    entity_type="candidacy",
+    entity_type="candidacy_stage",
     display_name="Candidacy Stages",
     default_input_table="goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages",
     comparisons=[
