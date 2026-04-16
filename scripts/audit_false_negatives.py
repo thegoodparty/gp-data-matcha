@@ -3,7 +3,7 @@
 Audit false negatives: find input records that didn't match but plausibly should have.
 
 Usage:
-    uv run python -m scripts.cli audit false-negatives --entity-type candidacy --results-dir results/candidacy/
+    uv run python -m scripts.cli audit false-negatives --entity-type candidacy_stage --results-dir results/candidacy_stage/
 """
 
 from pathlib import Path

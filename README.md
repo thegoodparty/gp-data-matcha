@@ -215,7 +215,7 @@ Python script performs only:
 | Comparisons | 9 (incl. `election_date`) | 10 (incl. `office_type`, `office_level`) |
 | Blocking rules | 6 (incl. `br_race_id`) | 5 (no race ID) |
 | Date columns | `election_date` | none |
-| EM training | last_name+state+election_date, first_name, email, state+election_date+last_name | last_name+state+office_level, first_name, phone, state+office_type |
+| EM training | last_name+state+election_date, first_name, email, state+election_date+last_name | last_name+state+office_level, first_name+state, phone, state+office_type+last_name |
 | Post-prediction filter | Person + office + race ID guard | Person + office (no race ID guard) |
 | Cluster grain | Candidacy (person+office+election) | Person (multi-term records cluster together) |
 | Thresholds | predict=0.01, cluster=0.95 | predict=0.01, cluster=0.95 |

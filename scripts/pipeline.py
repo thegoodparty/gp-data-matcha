@@ -3,7 +3,7 @@
 Splink entity resolution: multi-source record matching.
 
 Usage:
-    uv run python -m scripts.cli match --entity-type candidacy --input data/input.csv
+    uv run python -m scripts.cli match --entity-type candidacy_stage --input data/input.csv
     uv run python -m scripts.cli match --entity-type elected_official --input catalog.schema.table
 """
 

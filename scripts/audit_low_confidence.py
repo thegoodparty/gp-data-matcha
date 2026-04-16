@@ -5,7 +5,7 @@ match probability) to help identify false positives and understand model
 uncertainty.
 
 Usage:
-    uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/
+    uv run python -m scripts.cli audit low-confidence --entity-type candidacy_stage --results-dir results/candidacy_stage/
 """
 
 from pathlib import Path

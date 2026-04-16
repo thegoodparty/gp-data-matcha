@@ -30,7 +30,7 @@ uv run python -m scripts.cli match --entity-type candidacy_stage \
 
 # Elected officials:
 uv run python -m scripts.cli match --entity-type elected_official \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials
+  --input goodparty_data_catalog.dbt.int__er_prematch_elected_officials
 ```
 
 Requires `DATABRICKS_HTTP_PATH` env var for Databricks reads (see
