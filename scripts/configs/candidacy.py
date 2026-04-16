@@ -13,7 +13,7 @@ from scripts.entity_config import EntityConfig
 CANDIDACY_CONFIG = EntityConfig(
     entity_type="candidacy",
     display_name="Candidacy Stages",
-    default_input_table="goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages",
+    default_input_table="goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages",
     comparisons=[
         cl.JaroWinklerAtThresholds(
             "last_name", score_threshold_or_thresholds=[0.95, 0.88]
@@ -80,7 +80,7 @@ CANDIDACY_CONFIG = EntityConfig(
         ("last_name", "state", "election_date"),
         ("first_name",),
         ("email",),
-        ("state", "election_date"),
+        ("state", "election_date", "last_name"),
     ],
     predict_threshold=0.01,
     cluster_threshold=0.95,

@@ -13,7 +13,7 @@ from scripts.entity_config import EntityConfig
 ELECTED_OFFICIAL_CONFIG = EntityConfig(
     entity_type="elected_official",
     display_name="Elected Officials",
-    default_input_table="goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials",
+    default_input_table="goodparty_data_catalog.dbt.int__er_prematch_elected_officials",
     comparisons=[
         # ── Person-level ──
         cl.JaroWinklerAtThresholds(
@@ -85,9 +85,9 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
     ],
     em_training_blocks=[
         ("last_name", "state", "office_level"),
-        ("first_name",),
+        ("first_name", "state"),
         ("phone",),
-        ("state", "office_type"),
+        ("state", "office_type", "last_name"),
     ],
     predict_threshold=0.01,
     cluster_threshold=0.95,
