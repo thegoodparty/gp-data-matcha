@@ -1,7 +1,7 @@
-# Matcha: Multi-Source Entity Resolution
+# 🍵 Matcha: Multi-Source Entity Resolution
 
-Splink-based probabilistic record linkage for matching records across
-multiple data sources. Supports two entity types:
+Splink-based probabilistic record linkage for cross-source entity
+resolution. Supports candidacy stages and elected officials matching.
 
 - **Candidacy** — matches candidacy stage records (BR, TS, DDHQ) by person + office + election date
 - **Elected Official** — matches elected official records (BR, TS) by person + office (no election date)
@@ -24,7 +24,7 @@ rules, filters) lives in `scripts/configs/`.
 uv sync
 
 # Candidacy matching (default)
-uv run python -m scripts.cli match --entity-type candidacy --input input.csv
+uv run python -m scripts.cli match --entity-type candidacy_stage --input input.csv
 
 # Elected official matching
 uv run python -m scripts.cli match --entity-type elected_official --input input.csv
@@ -76,16 +76,16 @@ export DATABRICKS_CLIENT_ID=<service-principal-client-id>
 export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
 
 uv run python -m scripts.cli match \
-  --entity-type candidacy \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
-  --output-cluster-table goodparty_data_catalog.er_source.er_clustered_candidacies \
-  --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_predictions \
+  --entity-type candidacy_stage \
+  --input goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages \
+  --output-cluster-table goodparty_data_catalog.dbt.er_clustered_candidacies \
+  --output-pairwise-table goodparty_data_catalog.dbt.er_pairwise_predictions \
   --overwrite
 
 # Elected officials
 uv run python -m scripts.cli match \
   --entity-type elected_official \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_elected_officials \
+  --input goodparty_data_catalog.dbt.int__er_prematch_elected_officials \
   --output-cluster-table goodparty_data_catalog.er_source.er_clustered_elected_officials \
   --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_elected_officials \
   --overwrite
@@ -97,7 +97,7 @@ uv run python -m scripts.cli match \
 Usage: cli.py match [OPTIONS]
 
 Options:
-  --entity-type [candidacy|elected_official]  Entity type to match (default: candidacy).
+  --entity-type [candidacy_stage|elected_official]  Entity type to match (default: candidacy_stage).
   --input TEXT                  Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
   --output-dir DIRECTORY        Directory for local results. Default: results/<entity-type>/
   --output-cluster-table TEXT   Databricks FQN to upload clustered results (catalog.schema.table).
@@ -108,8 +108,8 @@ Options:
 ### Audit subcommands
 
 ```bash
-uv run python -m scripts.cli audit summary --entity-type candidacy --results-dir results/candidacy/
-uv run python -m scripts.cli audit low-confidence --entity-type candidacy --results-dir results/candidacy/ --sample 20
+uv run python -m scripts.cli audit summary --entity-type candidacy_stage --results-dir results/candidacy_stage/
+uv run python -m scripts.cli audit low-confidence --entity-type candidacy_stage --results-dir results/candidacy_stage/ --sample 20
 uv run python -m scripts.cli audit false-negatives --entity-type elected_official --results-dir results/elected_official/
 ```
 
@@ -215,7 +215,7 @@ Python script performs only:
 | Comparisons | 9 (incl. `election_date`) | 10 (incl. `office_type`, `office_level`) |
 | Blocking rules | 6 (incl. `br_race_id`) | 5 (no race ID) |
 | Date columns | `election_date` | none |
-| EM training | last_name+state+election_date, first_name, email, state+election_date | last_name+state+office_level, first_name, phone, state+office_type |
+| EM training | last_name+state+election_date, first_name, email, state+election_date+last_name | last_name+state+office_level, first_name, phone, state+office_type |
 | Post-prediction filter | Person + office + race ID guard | Person + office (no race ID guard) |
 | Cluster grain | Candidacy (person+office+election) | Person (multi-term records cluster together) |
 | Thresholds | predict=0.01, cluster=0.95 | predict=0.01, cluster=0.95 |
