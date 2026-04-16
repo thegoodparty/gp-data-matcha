@@ -78,7 +78,13 @@ def test_match_missing_file(mock_run):
     """match fails gracefully when input file doesn't exist."""
     result = CliRunner().invoke(
         cli,
-        ["match", "--entity-type", "candidacy_stage", "--input", "/nonexistent/file.csv"],
+        [
+            "match",
+            "--entity-type",
+            "candidacy_stage",
+            "--input",
+            "/nonexistent/file.csv",
+        ],
     )
     assert result.exit_code != 0
 
