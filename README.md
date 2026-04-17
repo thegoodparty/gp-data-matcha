@@ -1,9 +1,14 @@
-# 🍵 Matcha: Multi-Source Candidacy Entity Resolution
+# 🍵 Matcha: Multi-Source Entity Resolution
 
-Splink-based probabilistic record linkage to match candidacy records across
-multiple data sources. Currently links BallotReady (BR), TechSpeed (TS), and
-DDHQ records. The pipeline supports any number of sources discovered
-dynamically from the `source_name` column.
+Splink-based probabilistic record linkage for cross-source entity
+resolution. Supports candidacy stages and elected officials matching.
+
+- **Candidacy** — matches candidacy stage records (BR, TS, DDHQ) by person + office + election date
+- **Elected Official** — matches elected official records (BR, TS) by person + office (no election date)
+
+The pipeline supports any number of sources discovered dynamically from the
+`source_name` column. Entity-specific configuration (comparisons, blocking
+rules, filters) lives in `scripts/configs/`.
 
 ## Quick start
 
@@ -17,7 +22,12 @@ dynamically from the `source_name` column.
 
 ```bash
 uv sync
-uv run python -m scripts.cli match --input input.csv
+
+# Candidacy matching (default)
+uv run python -m scripts.cli match --entity-type candidacy_stage --input input.csv
+
+# Elected official matching
+uv run python -m scripts.cli match --entity-type elected_official --input input.csv
 ```
 
 ### Docker (pre-built image)
@@ -66,9 +76,18 @@ export DATABRICKS_CLIENT_ID=<service-principal-client-id>
 export DATABRICKS_CLIENT_SECRET=<service-principal-secret>
 
 uv run python -m scripts.cli match \
-  --input goodparty_data_catalog.dbt_dball.int__er_prematch_candidacy_stages \
-  --output-cluster-table goodparty_data_catalog.dbt_dball.er_clustered_candidacies \
-  --output-pairwise-table goodparty_data_catalog.dbt_dball.er_pairwise_predictions \
+  --entity-type candidacy_stage \
+  --input goodparty_data_catalog.dbt.int__er_prematch_candidacy_stages \
+  --output-cluster-table goodparty_data_catalog.dbt.er_clustered_candidacies \
+  --output-pairwise-table goodparty_data_catalog.dbt.er_pairwise_predictions \
+  --overwrite
+
+# Elected officials
+uv run python -m scripts.cli match \
+  --entity-type elected_official \
+  --input goodparty_data_catalog.dbt.int__er_prematch_elected_officials \
+  --output-cluster-table goodparty_data_catalog.er_source.er_clustered_elected_officials \
+  --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_elected_officials \
   --overwrite
 ```
 
@@ -78,8 +97,9 @@ uv run python -m scripts.cli match \
 Usage: cli.py match [OPTIONS]
 
 Options:
+  --entity-type [candidacy_stage|elected_official]  Entity type to match (default: candidacy_stage).
   --input TEXT                  Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
-  --output-dir DIRECTORY        Directory for local results. Default: results/
+  --output-dir DIRECTORY        Directory for local results. Default: results/<entity-type>/
   --output-cluster-table TEXT   Databricks FQN to upload clustered results (catalog.schema.table).
   --output-pairwise-table TEXT  Databricks FQN to upload pairwise predictions (catalog.schema.table).
   --overwrite                   Overwrite existing Databricks output tables.
@@ -88,9 +108,9 @@ Options:
 ### Audit subcommands
 
 ```bash
-uv run python -m scripts.cli audit summary --results-dir results/
-uv run python -m scripts.cli audit low-confidence --results-dir results/ --sample 20
-uv run python -m scripts.cli audit false-negatives --results-dir results/
+uv run python -m scripts.cli audit summary --entity-type candidacy_stage --results-dir results/candidacy_stage/
+uv run python -m scripts.cli audit low-confidence --entity-type candidacy_stage --results-dir results/candidacy_stage/ --sample 20
+uv run python -m scripts.cli audit false-negatives --entity-type elected_official --results-dir results/elected_official/
 ```
 
 When `--run-audit` is enabled (default), all three audits run automatically after
@@ -110,15 +130,15 @@ or post-prediction filters:
 /audit-er-results
 ```
 
-**Input:** CSV file or Databricks table from `int__er_prematch_candidacy_stages`
-**Output:**
-- `results/pairwise_predictions.csv` — all scored candidate pairs
-- `results/clustered_candidacies.csv` — all records with cluster assignments
-- `results/match_weights_chart.html` — Splink match weight visualization
-- `results/m_u_parameters_chart.html` — learned m/u probability visualization
-- `results/audit_summary.csv` — match coverage stats per source
-- `results/audit_low_confidence.csv` — most ambiguous pairs for review
-- `results/audit_false_negatives.csv` — plausible matches the model missed
+**Input:** CSV file or Databricks table from `int__er_prematch_candidacy_stages` or `int__er_prematch_elected_officials`
+**Output** (in `results/<entity-type>/`):
+- `pairwise_predictions.csv` — all scored candidate pairs
+- `clustered_candidacies.csv` or `clustered_elected_officials.csv` — all records with cluster assignments
+- `match_weights_chart.html` — Splink match weight visualization
+- `m_u_parameters_chart.html` — learned m/u probability visualization
+- `audit_summary.csv` — match coverage stats per source
+- `audit_low_confidence.csv` — most ambiguous pairs for review
+- `audit_false_negatives.csv` — plausible matches the model missed
 
 ## Authentication
 
@@ -150,230 +170,67 @@ Used in Docker containers and Airflow. All four env vars are required:
 The pipeline detects which mode to use based on whether `DATABRICKS_CLIENT_ID`
 and `DATABRICKS_CLIENT_SECRET` are set.
 
-## Design: candidate-level vs race-level attributes
+## Architecture
 
-Attributes are divided into two categories based on how they contribute to
-scoring:
+The pipeline is **config-driven**. All entity-specific settings (comparisons,
+blocking rules, EM training blocks, post-prediction filters, audit columns)
+live in frozen `EntityConfig` dataclasses in `scripts/configs/`. Pipeline
+functions accept a `config` parameter — no hardcoded entity logic.
 
-**Candidate-level attributes** (strongest Splink comparisons — drive the match
-score):
-- `last_name`, `first_name`, `party`, `email`, `phone`
-
-**Race/election-level attributes** (used in both blocking rules and as Splink
-comparisons, but guarded by post-prediction filters to prevent false positives):
-- `state`, `official_office_name`, `election_date`, `district_identifier`
-- `br_race_id` — used in blocking only
-
-**Additional retained columns** (carried through for filtering and output but
-not used as comparisons):
-- `office_type`, `candidate_office`, `office_level`,
-  `district_raw`, `seat_name`, `election_stage`, `br_candidacy_id`
-
-### Why race-level attributes need post-prediction guards
-
-Multiple candidates run in the same race. Race-level attributes like
-`official_office_name`, `election_date`, and `state` produce positive Bayes
-factors for *any* pair of candidates in the same race — which can overwhelm
-name-mismatch penalties. The post-prediction filter (described below) catches
-these cases by requiring name agreement and office/race consistency.
+```
+scripts/
+  entity_config.py          # EntityConfig dataclass + get_config() registry
+  constants.py              # OFFICE_STOP_WORDS shared by both configs
+  configs/
+    candidacy.py            # CANDIDACY_CONFIG
+    elected_official.py     # ELECTED_OFFICIAL_CONFIG
+  pipeline.py               # All functions accept config param
+  cli.py                    # --entity-type routes to correct config
+```
 
 ## How it works
 
-The script uses [Splink 4](https://moj-analytical-services.github.io/splink/)
+The pipeline uses [Splink 4](https://moj-analytical-services.github.io/splink/)
 in `link_only` mode (cross-source matching, no within-source dedup) with
 DuckDB as the backend. Sources are discovered dynamically from
 `df["source_name"].unique()` and passed as a list to the Splink `Linker`.
 
 ### Preprocessing
 
-Most data cleaning is handled upstream in the dbt prematch model
-(`int__er_prematch_candidacy_stages`). The Python script performs only:
+Most data cleaning is handled upstream in the dbt prematch models. The
+Python script performs only:
 
-- **First name nicknames:** the dbt model maps each first name to an alias
-  array via the `nicknames` seed (e.g. robert -> [robert, bob, bobby, rob,
-  bert, ...]). The array always includes the original first name. The script
-  parses these JSON arrays so Splink's `ArrayIntersectLevel` can check for
-  overlap, recognizing "robert" and "bob" as potential matches without
-  requiring exact string similarity.
+- **First name nicknames:** parses JSON alias arrays so Splink's
+  `ArrayIntersectLevel` can check for overlap (e.g. "robert" and "bob")
+- **Date parsing:** converts date columns (e.g. `election_date` for candidacy)
+  to consistent format. Controlled by `config.date_columns`.
 - **Nulls:** literal `"null"` strings, empty strings, and `NaN` are all
   converted to `None` so Splink treats them as missing data
 
-The following are handled in dbt (not in the Python script):
-- **Names:** lowercased and trimmed
-- **`official_office_name`:** lowercased and trimmed
-- **`district_identifier`:** cast to int (normalizes leading zeros)
-- **`br_race_id`:** cast to int (non-integer values like
-  `ts_found_race_net_new` become null so the blocking rule only fires for
-  records with a shared race ID)
+### Entity type comparison
 
-### Blocking rules (which pairs to compare)
+| Aspect | Candidacy | Elected Official |
+|--------|-----------|-----------------|
+| Input table | `int__er_prematch_candidacy_stages` | `int__er_prematch_elected_officials` |
+| Comparisons | 9 (incl. `election_date`) | 10 (incl. `office_type`, `office_level`) |
+| Blocking rules | 6 (incl. `br_race_id`) | 5 (no race ID) |
+| Date columns | `election_date` | none |
+| EM training | last_name+state+election_date, first_name, email, state+election_date+last_name | last_name+state+office_level, first_name+state, phone, state+office_type+last_name |
+| Post-prediction filter | Person + office + race ID guard | Person + office (no race ID guard) |
+| Cluster grain | Candidacy (person+office+election) | Person (multi-term records cluster together) |
+| Thresholds | predict=0.01, cluster=0.95 | predict=0.01, cluster=0.95 |
 
-Blocking rules determine which record pairs are generated for scoring. Splink
-unions the pairs from each rule, deduplicating. All rules enforce race-level
-constraints so that only candidates plausibly in the same race are compared.
+Both entity types share:
+- Person-level comparisons: `last_name` (JW with TF adjustment), `first_name`
+  (custom with nickname aliases), `party`, `email`, `phone`
+- Office-level comparisons: `state`, `official_office_name` (JW with 0.75 tier),
+  `district_identifier`
+- Post-prediction person identity filter: `gamma_last_name > 0 AND
+  (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)`
+- Office name locality-token fallback (shared `OFFICE_STOP_WORDS` list)
 
-| Order | Rule | Purpose |
-|-------|------|---------|
-| 1 | `br_race_id` (exact) | High-cardinality first pass. Pairs records in the same race. Covers the majority of matches. |
-| 2 | `state + election_date + official_office_name (JW >= 0.88) + last_name` (exact) | Catches cross-source office formatting differences for records without a shared race ID. |
-| 3 | `state + last_name + election_date` (exact) | Broad catch-all for net-new records and cases not covered by race ID or office name. |
-| 4 | `state + election_date + official_office_name (JW >= 0.88) + last_name (JW >= 0.88)` | Catches last name typos/variants across sources with different office formatting. |
-| 5 | `phone` (exact) | Contact-info matches where names may differ. |
-| 6 | `email` (exact) | Contact-info matches where names may differ. |
-
-Rules 2 and 4 use DuckDB's `jaro_winkler_similarity` function via Splink's
-`CustomRule` for fuzzy blocking.
-
-### Comparisons (how pairs are scored)
-
-All comparisons contribute Bayes factors to the match score:
-
-| Column | Type | Levels | Notes |
-|--------|------|--------|-------|
-| `last_name` | Jaro-Winkler | exact, >= 0.95, >= 0.88, else | Term frequency adjusted (down-weights common surnames) |
-| `first_name` | Custom | exact -> nickname -> JW >= 0.92 -> else | Nickname match via alias array intersection; TF adjusted on exact |
-| `party` | Exact | match, else | |
-| `email` | Exact | match, else | |
-| `phone` | Exact | match, else | |
-| `state` | Exact | match, else | |
-| `election_date` | Exact | match, else | |
-| `official_office_name` | Jaro-Winkler | exact, >= 0.95, >= 0.88, >= 0.75, else | 0.75 tier catches cross-source formatting |
-| `district_identifier` | Exact | match, else | Numeric district; provides positive/negative Bayesian evidence |
-
-### Training
-
-Four EM passes with different blocking ensure all comparison columns get
-trained. Each pass blocks on one or more columns (fixing them) and estimates
-m probabilities for the rest:
-
-1. Block on `last_name + state + election_date` -> trains first_name, party, email, phone, official_office_name, district_identifier
-2. Block on `first_name` -> trains last_name, party, email, phone, state, election_date, official_office_name, district_identifier
-3. Block on `email` -> trains last_name, first_name, party, phone, state, election_date, official_office_name, district_identifier
-4. Block on `state + election_date` -> trains last_name, first_name, party, email, phone, official_office_name, district_identifier
-
-u probabilities are estimated via random sampling (5M pairs) before EM.
-
-### Post-prediction filters
-
-After Splink scores all blocked pairs, three filters ensure we only cluster
-true candidacy matches (same person + same office + same election):
-
-1. **Person identity filter** — requires last name agreement (gamma > 0) AND
-   first name agreement OR email/phone match. Removes same-race,
-   different-candidate pairs.
-
-2. **Race-level filter** — requires either `official_office_name` JW >= 0.75
-   (gamma > 0) **or** a shared meaningful locality token between the two office
-   names. The JW threshold catches most cross-source formatting differences
-   (e.g. "durham school board" vs "durham county board of education", JW 0.87).
-   The locality-token fallback handles cases where the overall JW is low but
-   both names reference the same place — e.g. "mayor of brodhead" vs
-   "brodhead city mayor" (JW 0.557, but shared token "brodhead"). Common
-   structural words (city, county, board, council, district, school, etc.)
-   are excluded from the token overlap check so that only place names and
-   other distinctive tokens count.
-
-3. **Race ID filter** — excludes pairs where both sides have a known integer
-   `br_race_id` and they differ, **unless** the office names match well
-   (JW >= 0.88). Sources sometimes assign different race IDs to the same
-   race, so a strong office name match overrides the race ID disagreement.
-
-### Thresholds
-
-- **Prediction threshold: 0.01** — low threshold to capture all plausible pairs
-  for the post-prediction filters to evaluate
-- **Clustering threshold: 0.95** — high confidence required to cluster, since
-  the unit of matching is a *candidacy* (person + office + election date), not
-  just a person
-
-## Edge cases this handles
-
-### Last name typos across sources
-
-The fuzzy last name blocking rule (JW >= 0.88) ensures these pairs are
-generated even when names don't match exactly:
-
-| BR record | TS record | Match prob |
-|-----------|-----------|------------|
-| phillip **whitaker** (fort smith school board - zone 1) | phillip **whiteaker** (fort smith public school district zone 1) | 0.92 |
-| joe **montelone** (green park city mayor) | joe **monteleone** (green park city mayor) | 0.72 |
-| bob **feidler** (st. croix county board - dist 9) | bob **fiedler** (chenequa village board) | 0.83 |
-| amanda **fuerst** (wauwatosa city council - dist 10) | amanda **fuers** (wauwatosa city council - dist 10) | 0.84 |
-| emily **bassham** (mountainburg school board - zone 2) | emily **basham** (mountainburg school district, zone 2) | 0.88 |
-
-### Cross-source office name formatting
-
-Sources often format the same office differently. The fuzzy office blocking
-rule (JW >= 0.88) handles most cases. The 0.75 JW tier in the comparison
-catches reformatted office names that fall below 0.88. For extreme formatting
-differences (JW < 0.75), the locality-token fallback catches pairs that share
-a place name:
-
-| Source L | Source R | JW | Mechanism |
-|----------|----------|-----|-----------|
-| `fort smith school board - zone 1` (BR) | `fort smith public school district zone 1` (TS) | 0.89 | Office JW >= 0.88 |
-| `durham school board - district 4` (BR) | `durham county board of education district 04` (TS) | 0.87 | Office JW >= 0.75 |
-| `lake mills city council - district 1` (BR) | `city of lake mills council member- district 1` (TS) | 0.79 | Office JW >= 0.75 |
-| `city of racine alderperson 2` (DDHQ) | `racine city council - district 2` (TS) | 0.66 | Locality token "racine" |
-| `mayor of brodhead` (DDHQ) | `brodhead city mayor` (TS) | 0.56 | Locality token "brodhead" |
-| `city of seminole councilmember 3` (DDHQ) | `seminole city council - ward 3` (TS) | 0.64 | Locality token "seminole" |
-
-### First name nicknames
-
-The alias array intersection catches nickname matches that string similarity
-would miss:
-
-| BR name | TS name | Mechanism |
-|---------|---------|-----------|
-| robert smith | bob smith | alias arrays both contain "bob" and "robert" |
-| william jones | bill jones | alias intersection |
-| james wilson | jim wilson | alias intersection |
-
-### Same person, different office (correctly separated)
-
-The race-level filter prevents matching a person who runs for two different
-offices (e.g. mayor and city council) in the same city:
-
-| Candidate A | Candidate B | Matched? |
-|-------------|-------------|----------|
-| dean isgrigg, gerald city council - ward 2 | dean isgrigg, gerald city mayor | No (City Council != Mayor) |
-
-Note: candidates running for multiple offices in the same election can still
-end up in the same cluster if intermediate pairs chain them together. For
-example, John Muraski's howard village board and howard village president
-records are clustered together via transitive links through cross-source pairs.
-
-### Same race, different candidates (correctly separated)
-
-Two different candidates running in the same race share office, state, date,
-and district — but the person identity filter separates them:
-
-| Candidate A | Candidate B | Matched? |
-|-------------|-------------|----------|
-| joel straub, marathon county board dist 15 | timothy sondelski, marathon county board dist 25 | No (different names) |
-| clark rinehart, raleigh city council | sana siddiqui, raleigh city council | No (different names) |
-
-### Known false negatives
-
-A small number of true matches are systematically missed:
-
-1. **Office names with no shared locality token and JW < 0.75 (~2-3 pairs):**
-   The race-level filter requires either JW >= 0.75 or a shared meaningful
-   locality token. A few true matches fall through when the source uses a
-   county name while the other uses a city name for the same jurisdiction
-   (e.g. "louisville metro council" vs "jefferson-dist 9 legislative council"
-   — Louisville is in Jefferson County, but neither name contains the other's
-   locality token). State names used as locality tokens can also cause a small
-   number of false positives (e.g. "university of nebraska board of regents"
-   matching "nebraska member of state board of education" via shared
-   "nebraska").
-
-2. **Uncommon nicknames not in the nicknames seed (~60 pairs sharing
-   `br_race_id` + `last_name`):** The nickname alias table doesn't cover
-   informal or uncommon variants. Examples:
-   - `barb` / `barbara`, `samara` / `sammie`, `keisha` / `lakeisha`
-   - `a.j.` / `a.` (initial/period handling)
-   - `fee fee` / `iphenia`, `clutch` / `claude` (exotic nicknames)
+For full config details, see `scripts/configs/candidacy.py` and
+`scripts/configs/elected_official.py`.
 
 ## Testing
 

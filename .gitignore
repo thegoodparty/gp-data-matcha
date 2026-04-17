@@ -4,8 +4,10 @@ __pycache__/
 results/
 *.csv
 !tests/dummy_data.csv
+!tests/dummy_data_elected.csv
 .env
 *.egg-info/
 dist/
 build/
 .pytest_cache/
+.worktrees/
