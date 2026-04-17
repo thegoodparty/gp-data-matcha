@@ -194,6 +194,13 @@ def write_table(
         volume_path = (
             f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
         )
+        # Coerce all-null columns to string so pyarrow writes them as string
+        # type instead of null type — Delta's COPY INTO cannot merge null-typed
+        # parquet fields into the STRING columns defined by CREATE TABLE.
+        for col in df.columns:
+            if df[col].isna().all():
+                df[col] = df[col].fillna("")
+
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
             df.to_parquet(tmp.name, index=False)
             with open(tmp.name, "rb") as f:
