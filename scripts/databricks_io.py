@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass
 
 import pandas as pd
+import pyarrow as pa
 from databricks import sql as databricks_sql
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config, oauth_service_principal
@@ -194,8 +195,22 @@ def write_table(
         volume_path = (
             f"/Volumes/{t.catalog}/{t.schema}/{staging_volume}/{t.table}.parquet"
         )
+        # Build an explicit pyarrow schema so all-null columns are written as
+        # string type instead of null type. Delta's COPY INTO cannot merge
+        # null-typed parquet fields into STRING columns defined by CREATE TABLE.
+        # Using an explicit schema preserves null values (no fillna needed) and
+        # avoids mutating the caller's DataFrame.
+        inferred = pa.Schema.from_pandas(df, preserve_index=False)
+        fields = []
+        for field in inferred:
+            if field.type == pa.null():
+                fields.append(pa.field(field.name, pa.string(), nullable=True))
+            else:
+                fields.append(field)
+        schema = pa.schema(fields)
+
         with tempfile.NamedTemporaryFile(suffix=".parquet") as tmp:
-            df.to_parquet(tmp.name, index=False)
+            df.to_parquet(tmp.name, index=False, schema=schema)
             with open(tmp.name, "rb") as f:
                 w.files.upload(volume_path, f, overwrite=True)
             print(f"Uploaded parquet to {volume_path}")

@@ -3,6 +3,8 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from scripts.databricks_io import (
     _df_to_databricks_schema,
@@ -44,6 +46,70 @@ def test_df_to_databricks_schema():
     assert "`age` BIGINT" in schema
     assert "`score` DOUBLE" in schema
     assert "`active` BOOLEAN" in schema
+
+
+def test_parquet_schema_coerces_null_columns_to_string(tmp_path):
+    """All-null columns are written as string type (not null type) in parquet."""
+    df = pd.DataFrame(
+        {"name": ["alice", "bob"], "all_null": [None, None], "score": [0.9, 0.8]}
+    )
+    outpath = tmp_path / "test.parquet"
+
+    # Replicate the schema logic from write_table
+    inferred = pa.Schema.from_pandas(df, preserve_index=False)
+    fields = [
+        pa.field(f.name, pa.string(), nullable=True) if f.type == pa.null() else f
+        for f in inferred
+    ]
+    schema = pa.schema(fields)
+    df.to_parquet(outpath, index=False, schema=schema)
+
+    result_schema = pq.read_schema(outpath)
+    # The all-null column should be string, not null
+    assert result_schema.field("all_null").type == pa.string()
+    # Other columns keep their original types
+    assert result_schema.field("name").type == pa.string()
+    assert result_schema.field("score").type == pa.float64()
+
+    # Null values are preserved (not empty strings)
+    result_df = pd.read_parquet(outpath)
+    assert result_df["all_null"].isna().all()
+
+
+def test_parquet_schema_handles_named_index(tmp_path):
+    """DataFrames with named or non-default indexes don't break parquet write."""
+    df = pd.DataFrame({"x": [1, 2]}).set_index(pd.Index(["a", "b"], name="idx"))
+    outpath = tmp_path / "test.parquet"
+
+    inferred = pa.Schema.from_pandas(df, preserve_index=False)
+    fields = [
+        pa.field(f.name, pa.string(), nullable=True) if f.type == pa.null() else f
+        for f in inferred
+    ]
+    schema = pa.schema(fields)
+
+    # Should not raise ValueError about index fields
+    df.to_parquet(outpath, index=False, schema=schema)
+    result_df = pd.read_parquet(outpath)
+    assert list(result_df.columns) == ["x"]
+    assert len(result_df) == 2
+
+
+def test_parquet_schema_does_not_mutate_dataframe():
+    """The schema construction does not modify the original DataFrame."""
+    df = pd.DataFrame({"val": ["a", "b"], "empty": [None, None]})
+    original_dtypes = df.dtypes.copy()
+
+    inferred = pa.Schema.from_pandas(df, preserve_index=False)
+    fields = [
+        pa.field(f.name, pa.string(), nullable=True) if f.type == pa.null() else f
+        for f in inferred
+    ]
+    pa.schema(fields)
+
+    # DataFrame should be unchanged
+    assert df["empty"].isna().all()
+    assert (df.dtypes == original_dtypes).all()
 
 
 @patch("scripts.databricks_io.WorkspaceClient")
