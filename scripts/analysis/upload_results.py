@@ -5,6 +5,7 @@ Reads the CSVs that were audited and approved, and uploads them
 to the specified Databricks tables. Avoids re-running matching
 (which would produce different results due to random sampling).
 """
+
 import sys
 
 import pandas as pd

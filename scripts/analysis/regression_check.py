@@ -4,6 +4,7 @@
 Uses co-cluster pair sets (not raw cluster_id, which renumbers across runs).
 Baseline has no GP rows, so use as-is. Filter only 4-source output.
 """
+
 from itertools import combinations
 from pathlib import Path
 
@@ -52,7 +53,9 @@ def main() -> None:
         for uid_a, uid_b in sorted(lost_pairs):
             row_a = baseline[baseline["unique_id"] == uid_a].iloc[0]
             row_b = baseline[baseline["unique_id"] == uid_b].iloc[0]
-            print(f"  {uid_a} ({row_a['source_name']}) <-> {uid_b} ({row_b['source_name']})")
+            print(
+                f"  {uid_a} ({row_a['source_name']}) <-> {uid_b} ({row_b['source_name']})"
+            )
             print(f"    baseline cluster: {row_a['cluster_id']}")
 
     # Detail new pairs — review for legitimacy (GP bridging is OK)
@@ -68,7 +71,9 @@ def main() -> None:
                 & (four_src["source_name"] == "gp_api")
             ]
             bridged = "GP-BRIDGED" if len(gp_in_cluster) > 0 else "EM-SHIFT"
-            print(f"  [{bridged}] {uid_a} ({row_a['source_name']}) <-> {uid_b} ({row_b['source_name']})")
+            print(
+                f"  [{bridged}] {uid_a} ({row_a['source_name']}) <-> {uid_b} ({row_b['source_name']})"
+            )
         if len(new_pairs) > 50:
             print(f"  ... and {len(new_pairs) - 50} more")
 
@@ -79,7 +84,9 @@ def main() -> None:
     gp_matched = gp_records[gp_records["cluster_id"].isin(gp_multi)]
     print(f"\n=== GP API MATCH STATS ===")
     print(f"  Total GP records: {len(gp_records):,}")
-    print(f"  GP records in multi-member clusters: {len(gp_matched):,} ({100*len(gp_matched)/len(gp_records):.1f}%)")
+    print(
+        f"  GP records in multi-member clusters: {len(gp_matched):,} ({100*len(gp_matched)/len(gp_records):.1f}%)"
+    )
     print(f"  GP singletons: {len(gp_records) - len(gp_matched):,}")
 
 

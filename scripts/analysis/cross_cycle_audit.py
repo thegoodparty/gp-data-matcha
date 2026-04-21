@@ -9,6 +9,7 @@ Identifies pairs where:
 These are the risky cohort: same person, different election cycle,
 matched only because of shared contact info.
 """
+
 import pandas as pd
 
 PAIRWISE_CSV = "results/candidacy_stage/pairwise_predictions.csv"
@@ -34,13 +35,22 @@ print(f"\nCross-cycle risky cohort: {len(cohort)} pairs")
 if len(cohort) > 0:
     print("\n=== CROSS-CYCLE PAIRS (REVIEW EACH) ===")
     display_cols = [
-        "unique_id_l", "unique_id_r",
-        "source_name_l", "source_name_r",
-        "first_name_l", "last_name_l", "first_name_r", "last_name_r",
-        "election_date_l", "election_date_r",
-        "official_office_name_l", "official_office_name_r",
-        "br_race_id_l", "br_race_id_r",
-        "gamma_email", "gamma_phone",
+        "unique_id_l",
+        "unique_id_r",
+        "source_name_l",
+        "source_name_r",
+        "first_name_l",
+        "last_name_l",
+        "first_name_r",
+        "last_name_r",
+        "election_date_l",
+        "election_date_r",
+        "official_office_name_l",
+        "official_office_name_r",
+        "br_race_id_l",
+        "br_race_id_r",
+        "gamma_email",
+        "gamma_phone",
         "match_probability",
     ]
     available = [c for c in display_cols if c in cohort.columns]
@@ -55,11 +65,14 @@ else:
 # Additional: GP pairs with gamma_party = 0 that still matched well
 print("\n=== GP PAIRS WITH PARTY MISMATCH ===")
 gp_party_mismatch = gp_pairs[
-    (gp_pairs["gamma_party"] == 0)
-    & (gp_pairs["match_probability"] >= 0.95)
+    (gp_pairs["gamma_party"] == 0) & (gp_pairs["match_probability"] >= 0.95)
 ]
 print(f"High-confidence GP pairs with gamma_party=0: {len(gp_party_mismatch):,}")
 if len(gp_party_mismatch) > 0:
     probs = gp_party_mismatch["match_probability"]
-    print(f"  probability: mean={probs.mean():.3f}, min={probs.min():.3f}, max={probs.max():.3f}")
-    print("  (Party disagreement is not blocking high-confidence matches — this is expected)")
+    print(
+        f"  probability: mean={probs.mean():.3f}, min={probs.min():.3f}, max={probs.max():.3f}"
+    )
+    print(
+        "  (Party disagreement is not blocking high-confidence matches — this is expected)"
+    )
