@@ -61,7 +61,7 @@ def main() -> None:
     # Detail new pairs — review for legitimacy (GP bridging is OK)
     if new_pairs:
         print("\n=== NEW PAIRS (REVIEW FOR GP BRIDGING) ===")
-        for uid_a, uid_b in sorted(list(new_pairs)[:50]):  # cap at 50
+        for uid_a, uid_b in sorted(new_pairs)[:50]:
             row_a = non_gp_four[non_gp_four["unique_id"] == uid_a].iloc[0]
             row_b = non_gp_four[non_gp_four["unique_id"] == uid_b].iloc[0]
             cluster = row_a["cluster_id"]
@@ -82,7 +82,7 @@ def main() -> None:
     gp_cluster_sizes = four_src.groupby("cluster_id").size()
     gp_multi = gp_cluster_sizes[gp_cluster_sizes > 1].index
     gp_matched = gp_records[gp_records["cluster_id"].isin(gp_multi)]
-    print(f"\n=== GP API MATCH STATS ===")
+    print("\n=== GP API MATCH STATS ===")
     print(f"  Total GP records: {len(gp_records):,}")
     print(
         f"  GP records in multi-member clusters: {len(gp_matched):,} ({100*len(gp_matched)/len(gp_records):.1f}%)"
