@@ -43,6 +43,8 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         cl.ExactMatch("district_identifier"),
         cl.ExactMatch("office_type"),
         cl.ExactMatch("office_level"),
+        # ── Cross-source position ID (BR position FK) ──
+        cl.ExactMatch("ballotready_position_id"),
     ],
     blocking_rules_for_prediction=[
         # Rule 1: state + fuzzy office name + exact last name
@@ -67,6 +69,12 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         # Rules 4-5: contact info (low coverage, high precision)
         block_on("phone"),
         block_on("email"),
+        # Rule 6: state + ballotready_position_id (cross-source position match)
+        CustomRule(
+            "l.state = r.state"
+            " AND l.ballotready_position_id = r.ballotready_position_id",
+            sql_dialect="duckdb",
+        ),
     ],
     additional_columns_to_retain=[
         "source_name",
@@ -82,12 +90,24 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         "br_candidate_id",
         "ts_officeholder_id",
         "ts_position_id",
+        # New cross-source ER signal
+        "ballotready_position_id",
+        # ICP flags retained at term grain
+        "is_win_icp",
+        "is_serve_icp",
+        "is_win_supersize_icp",
+        # gp-api product IDs for follow-up mart integration
+        "gp_api_user_id",
+        "gp_api_campaign_id",
+        "gp_api_elected_office_id",
+        "gp_api_organization_slug",
     ],
     em_training_blocks=[
         ("last_name", "state", "office_level"),
         ("first_name", "state"),
         ("phone",),
         ("state", "office_type", "last_name"),
+        ("state", "ballotready_position_id"),
     ],
     predict_threshold=0.01,
     cluster_threshold=0.95,
@@ -108,6 +128,7 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         "candidate_office",
         "office_type",
         "office_level",
+        "ballotready_position_id",
     ],
     audit_gamma_columns=[
         "gamma_last_name",
@@ -120,6 +141,7 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         "gamma_district_identifier",
         "gamma_office_type",
         "gamma_office_level",
+        "gamma_ballotready_position_id",
     ],
     false_negative_group_cols=["source_name", "state", "office_level"],
 )
