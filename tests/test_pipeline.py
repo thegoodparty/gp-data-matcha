@@ -139,9 +139,9 @@ def test_build_settings_candidacy():
 
 
 def test_build_settings_elected_official():
-    """EO build_settings has 10 comparisons (no election_date, adds office_type + office_level)."""
+    """EO build_settings has 11 comparisons (no election_date, adds office_type + office_level + ballotready_position_id)."""
     settings = build_settings(ELECTED_OFFICIAL_CONFIG)
-    assert len(settings.comparisons) == 10
+    assert len(settings.comparisons) == 11
 
 
 # ── E2E Smoke Test ──
