@@ -64,5 +64,6 @@ EO_POST_PREDICTION_FILTER = f"""
           )
         )
         OR gamma_office_type > 0
+        OR gamma_ballotready_position_id > 0
       )
 """
