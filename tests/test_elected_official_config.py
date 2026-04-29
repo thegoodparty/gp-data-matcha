@@ -39,16 +39,19 @@ def test_ballotready_position_id_in_blocking_rules():
 
 
 def test_new_columns_in_additional_columns_to_retain():
-    """The 7 new retained columns are present (3 ICP + 4 gp_api IDs).
+    """The 4 new retained columns are present (gp_api product IDs only).
 
     Note: ballotready_position_id is intentionally NOT in additional_columns_to_retain
     because it's a comparison column (cl.ExactMatch at line 47) — Splink retains
     comparison columns automatically. Same convention as office_level and office_type.
+
+    Note: ICP flags (is_win_icp, is_serve_icp, is_win_supersize_icp) are also NOT
+    in additional_columns_to_retain — they're functional attributes from
+    int__civics_elected_official_ballotready, not match-process columns or
+    identifiers. The ER pipeline retains only matching-process telemetry plus
+    passthrough identifiers; functional attributes belong on the source intermediate.
     """
     expected = {
-        "is_win_icp",
-        "is_serve_icp",
-        "is_win_supersize_icp",
         "gp_api_user_id",
         "gp_api_campaign_id",
         "gp_api_elected_office_id",
@@ -57,8 +60,16 @@ def test_new_columns_in_additional_columns_to_retain():
     retained = set(ELECTED_OFFICIAL_CONFIG.additional_columns_to_retain)
     missing = expected - retained
     assert not missing, f"Missing retained columns: {missing}"
-    # Negative assertion: ballotready_position_id should NOT be duplicated here
+    # Negative assertions: comparison columns and functional attributes should NOT
+    # be in additional_columns_to_retain
     assert "ballotready_position_id" not in retained, (
         "ballotready_position_id is a comparison column and should not be listed in "
         "additional_columns_to_retain — Splink retains comparison columns automatically."
     )
+    for icp_col in ("is_win_icp", "is_serve_icp", "is_win_supersize_icp"):
+        assert icp_col not in retained, (
+            f"{icp_col} is a functional attribute (not a match-process column or "
+            "identifier) and should not be listed in additional_columns_to_retain. "
+            "Downstream consumers fetch ICP from int__civics_elected_official_ballotready "
+            "via br_office_holder_id join."
+        )

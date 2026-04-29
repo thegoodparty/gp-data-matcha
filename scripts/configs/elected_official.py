@@ -94,10 +94,10 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         # office_level and office_type — it's a comparison column (cl.ExactMatch
         # at line 47), so Splink retains it automatically. Listing it here would
         # duplicate the column and risk SQL errors in some Splink versions.
-        # ICP flags retained at term grain
-        "is_win_icp",
-        "is_serve_icp",
-        "is_win_supersize_icp",
+        # NOTE: ICP flags (is_win_icp, is_serve_icp, is_win_supersize_icp) are NOT
+        # listed here because they're functional attributes, not match-process
+        # columns or identifiers. Downstream consumers fetch ICP from
+        # int__civics_elected_official_ballotready via br_office_holder_id join.
         # gp-api product IDs for follow-up mart integration
         "gp_api_user_id",
         "gp_api_campaign_id",
