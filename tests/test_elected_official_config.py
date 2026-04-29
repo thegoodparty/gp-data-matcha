@@ -39,9 +39,13 @@ def test_ballotready_position_id_in_blocking_rules():
 
 
 def test_new_columns_in_additional_columns_to_retain():
-    """The 8 new retained columns are present (position_id + 3 ICP + 4 gp_api IDs)."""
+    """The 7 new retained columns are present (3 ICP + 4 gp_api IDs).
+
+    Note: ballotready_position_id is intentionally NOT in additional_columns_to_retain
+    because it's a comparison column (cl.ExactMatch at line 47) — Splink retains
+    comparison columns automatically. Same convention as office_level and office_type.
+    """
     expected = {
-        "ballotready_position_id",
         "is_win_icp",
         "is_serve_icp",
         "is_win_supersize_icp",
@@ -53,3 +57,8 @@ def test_new_columns_in_additional_columns_to_retain():
     retained = set(ELECTED_OFFICIAL_CONFIG.additional_columns_to_retain)
     missing = expected - retained
     assert not missing, f"Missing retained columns: {missing}"
+    # Negative assertion: ballotready_position_id should NOT be duplicated here
+    assert "ballotready_position_id" not in retained, (
+        "ballotready_position_id is a comparison column and should not be listed in "
+        "additional_columns_to_retain — Splink retains comparison columns automatically."
+    )

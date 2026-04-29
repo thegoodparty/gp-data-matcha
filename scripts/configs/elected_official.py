@@ -90,8 +90,10 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
         "br_candidate_id",
         "ts_officeholder_id",
         "ts_position_id",
-        # New cross-source ER signal
-        "ballotready_position_id",
+        # NOTE: ballotready_position_id is NOT listed here for the same reason as
+        # office_level and office_type — it's a comparison column (cl.ExactMatch
+        # at line 47), so Splink retains it automatically. Listing it here would
+        # duplicate the column and risk SQL errors in some Splink versions.
         # ICP flags retained at term grain
         "is_win_icp",
         "is_serve_icp",
