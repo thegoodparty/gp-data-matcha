@@ -38,10 +38,10 @@ def test_entity_config_defaults():
 
 
 def test_candidacy_config_comparisons():
-    """Candidacy config has exactly 9 comparisons (regression guard)."""
+    """Candidacy config has exactly 10 comparisons (regression guard)."""
     from scripts.configs.candidacy import CANDIDACY_CONFIG
 
-    assert len(CANDIDACY_CONFIG.comparisons) == 9
+    assert len(CANDIDACY_CONFIG.comparisons) == 10
     assert CANDIDACY_CONFIG.entity_type == "candidacy_stage"
     assert CANDIDACY_CONFIG.clustered_output_name == "clustered_candidacies.csv"
 

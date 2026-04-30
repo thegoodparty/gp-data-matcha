@@ -40,6 +40,7 @@ CANDIDACY_CONFIG = EntityConfig(
             score_threshold_or_thresholds=[0.95, 0.88, 0.75],
         ),
         cl.ExactMatch("district_identifier"),
+        cl.ExactMatch("office_level"),
     ],
     blocking_rules_for_prediction=[
         block_on("br_race_id"),
@@ -68,7 +69,10 @@ CANDIDACY_CONFIG = EntityConfig(
         "source_name",
         "source_id",
         "candidate_office",
-        "office_level",
+        # NOTE: office_level is NOT listed here because it's a comparison column —
+        # Splink retains it automatically. Listing it would duplicate the column
+        # and risk SQL errors in some Splink versions. Mirrors EO convention at
+        # scripts/configs/elected_official.py.
         "office_type",
         "district_raw",
         "seat_name",
@@ -81,6 +85,7 @@ CANDIDACY_CONFIG = EntityConfig(
         ("first_name",),
         ("email",),
         ("state", "election_date", "last_name"),
+        ("last_name", "state", "office_level"),
     ],
     predict_threshold=0.01,
     cluster_threshold=0.95,
@@ -110,6 +115,7 @@ CANDIDACY_CONFIG = EntityConfig(
         "official_office_name",
         "district_identifier",
         "candidate_office",
+        "office_level",
         "br_race_id",
     ],
     audit_gamma_columns=[
@@ -122,6 +128,7 @@ CANDIDACY_CONFIG = EntityConfig(
         "gamma_election_date",
         "gamma_official_office_name",
         "gamma_district_identifier",
+        "gamma_office_level",
     ],
     false_negative_group_cols=["source_name", "state", "election_date"],
 )
