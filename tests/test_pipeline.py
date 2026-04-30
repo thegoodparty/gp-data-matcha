@@ -135,7 +135,7 @@ def test_load_and_prepare_eo_no_date_parsing():
 def test_build_settings_candidacy():
     """build_settings wires the correct number of comparisons and blocking rules."""
     settings = build_settings(CANDIDACY_CONFIG)
-    assert len(settings.comparisons) == 9
+    assert len(settings.comparisons) == 10
 
 
 def test_build_settings_elected_official():
