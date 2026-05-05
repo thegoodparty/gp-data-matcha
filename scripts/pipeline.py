@@ -192,19 +192,20 @@ def save_results(
 ) -> None:
     """Write CSVs and diagnostic charts."""
 
+    import numpy as np
+
     def to_json(v):
         # Strings pass through unchanged (already JSON-serialized in a prior run)
         if isinstance(v, str):
             return v
-        # Lists / numpy arrays → JSON
         if isinstance(v, list):
             return json.dumps(v)
-        if hasattr(v, "tolist"):
+        if isinstance(v, np.ndarray):
             return json.dumps(v.tolist())
-        # Anything else (None, NaN, scalar) → empty array sentinel
+        # Anything else (None, NaN, numpy scalar in a list cell) → empty array sentinel.
+        # Strict ndarray check above (vs hasattr "tolist") is required so np.float64(nan)
+        # cells inside a list column don't json.dumps() to the non-standard "NaN" token.
         return "[]"
-
-    import numpy as np
 
     def _is_list_col(series: pd.Series) -> bool:
         # Probe the first non-null value — JSON-serialize only true list/array
