@@ -26,6 +26,34 @@ CANDIDACY_CONFIG = EntityConfig(
                     tf_adjustment_column="first_name",
                 ),
                 cll.ArrayIntersectLevel("first_name_aliases", min_intersection=1),
+                # Catches period/whitespace variants and compound first names where
+                # one source includes a middle name, honorific, or parenthetical
+                # (e.g. "r.j." vs "rj"; "charles kirk" vs "charles"; "dr. lori"
+                # vs "lori"). First clause: strip non-alpha and compare. Second:
+                # token intersection on tokens >= 2 chars.
+                cll.CustomLevel(
+                    sql_condition=(
+                        "regexp_replace(lower(first_name_l), '[^a-z]', '', 'g')"
+                        " = regexp_replace(lower(first_name_r), '[^a-z]', '', 'g')"
+                        " OR list_has_any("
+                        "  list_filter("
+                        "    string_split("
+                        "      lower(regexp_replace(first_name_l, '[^a-zA-Z ]', ' ', 'g')),"
+                        "      ' '"
+                        "    ),"
+                        "    x -> length(x) >= 2"
+                        "  ),"
+                        "  list_filter("
+                        "    string_split("
+                        "      lower(regexp_replace(first_name_r, '[^a-zA-Z ]', ' ', 'g')),"
+                        "      ' '"
+                        "    ),"
+                        "    x -> length(x) >= 2"
+                        "  )"
+                        ")"
+                    ),
+                    label_for_charts="normalized first name token overlap",
+                ),
                 cll.JaroWinklerLevel("first_name", distance_threshold=0.92),
                 cll.ElseLevel(),
             ],

@@ -73,3 +73,18 @@ def test_new_columns_in_additional_columns_to_retain():
             "Downstream consumers fetch ICP from int__civics_elected_official_ballotready "
             "via br_office_holder_id join."
         )
+
+
+def test_first_name_comparison_has_normalized_token_level():
+    """first_name comparison mirrors candidacy: includes normalized-token level
+    to catch compound names and period-separated initials missed by aliases + JW."""
+    fn = next(
+        c
+        for c in ELECTED_OFFICIAL_CONFIG.comparisons
+        if c.get_comparison("duckdb").output_column_name == "first_name"
+    )
+    labels = [
+        level.get("label_for_charts", "")
+        for level in fn.get_comparison("duckdb").as_dict()["comparison_levels"]
+    ]
+    assert "normalized first name token overlap" in labels
