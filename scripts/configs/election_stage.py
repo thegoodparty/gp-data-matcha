@@ -95,6 +95,7 @@ ELECTION_STAGE_CONFIG = EntityConfig(
         "office_level",
         "office_type",
         "district_identifier",
+        "seat_name",
         "election_date",
         "election_stage",
         "is_special",
