@@ -56,7 +56,10 @@ def test_post_prediction_filters_include_election_stage_filter():
     """Config must include the race-level filter (no person signals)."""
     from scripts.constants import ELECTION_STAGE_POST_PREDICTION_FILTER
 
-    assert ELECTION_STAGE_POST_PREDICTION_FILTER in ELECTION_STAGE_CONFIG.post_prediction_filters
+    assert (
+        ELECTION_STAGE_POST_PREDICTION_FILTER
+        in ELECTION_STAGE_CONFIG.post_prediction_filters
+    )
 
 
 def test_post_prediction_filters_suppress_is_special_mismatch():
@@ -75,4 +78,6 @@ def test_default_input_table():
 
 
 def test_clustered_output_name():
-    assert ELECTION_STAGE_CONFIG.clustered_output_name == "clustered_election_stages.csv"
+    assert (
+        ELECTION_STAGE_CONFIG.clustered_output_name == "clustered_election_stages.csv"
+    )

@@ -19,6 +19,17 @@ rules, filters) lives in `scripts/configs/`.
 - Docker for container-based runs
 - [GitHub CLI](https://cli.github.com/) (`gh`) for pulling pre-built images
 
+### pre-commit
+
+CI runs `black --check` on every PR, so a failing format will block the lint job. Install the git hook locally so it runs before you push:
+
+```bash
+# from the repo root, one-time
+pre-commit install
+```
+
+If `pre-commit` is not on your PATH, install it once with `pipx install pre-commit` (or `brew install pre-commit`). The hook config is in `.pre-commit-config.yaml` and pins the same black version CI uses.
+
 ### Local (uv)
 
 ```bash
