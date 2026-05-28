@@ -5,6 +5,7 @@ results/
 *.csv
 !tests/dummy_data.csv
 !tests/dummy_data_elected.csv
+!tests/fixtures/*.csv
 .env
 *.egg-info/
 dist/
