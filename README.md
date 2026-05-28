@@ -5,6 +5,7 @@ resolution. Supports candidacy stages and elected officials matching.
 
 - **Candidacy** — matches candidacy stage records (BR, TS, DDHQ) by person + office + election date
 - **Elected Official** — matches elected official records (BR, TS) by person + office (no election date)
+- **Election Stage** — matches race/contest records (BR, DDHQ, TS) by office + election date + jurisdiction (no person fields)
 
 The pipeline supports any number of sources discovered dynamically from the
 `source_name` column. Entity-specific configuration (comparisons, blocking
@@ -28,6 +29,9 @@ uv run python -m scripts.cli match --entity-type candidacy_stage --input input.c
 
 # Elected official matching
 uv run python -m scripts.cli match --entity-type elected_official --input input.csv
+
+# Election stage matching
+uv run python -m scripts.cli match --entity-type election_stage --input input.csv
 ```
 
 ### Docker (pre-built image)
@@ -89,6 +93,14 @@ uv run python -m scripts.cli match \
   --output-cluster-table goodparty_data_catalog.er_source.er_clustered_elected_officials \
   --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_elected_officials \
   --overwrite
+
+# Election stages
+uv run python -m scripts.cli match \
+  --entity-type election_stage \
+  --input goodparty_data_catalog.dbt.int__er_prematch_election_stages \
+  --output-cluster-table goodparty_data_catalog.er_source.er_clustered_election_stages \
+  --output-pairwise-table goodparty_data_catalog.er_source.er_pairwise_election_stages \
+  --overwrite
 ```
 
 ## CLI reference
@@ -97,7 +109,7 @@ uv run python -m scripts.cli match \
 Usage: cli.py match [OPTIONS]
 
 Options:
-  --entity-type [candidacy_stage|elected_official]  Entity type to match (default: candidacy_stage).
+  --entity-type [candidacy_stage|elected_official|election_stage]  Entity type to match (default: candidacy_stage).
   --input TEXT                  Path to prematch CSV or Databricks FQN (catalog.schema.table). Required.
   --output-dir DIRECTORY        Directory for local results. Default: results/<entity-type>/
   --output-cluster-table TEXT   Databricks FQN to upload clustered results (catalog.schema.table).
