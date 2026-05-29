@@ -43,16 +43,23 @@ ELECTION_STAGE_CONFIG = EntityConfig(
             " r.official_office_name) >= 0.88",
             sql_dialect="duckdb",
         ),
-        # 3. Exact tuple block
+        # 3. Normalized-office block: catches cross-source office-name variants
+        # that fall below the rule-2 JW threshold (e.g. "lincoln county r-iv
+        # school board" vs "lincoln r-4 school district"). candidate_office is
+        # the normalized office and is populated on all sources, so this closes
+        # the DDHQ-vs-BR blocking-recall gap the audit surfaced. The
+        # post-prediction filter still requires a shared locality token.
+        block_on("state", "election_date", "candidate_office"),
+        # 4. Exact tuple block
         block_on("state", "election_date", "office_level", "district_identifier"),
-        # 4. Position-FK fast path
+        # 5. Position-FK fast path
         CustomRule(
             "l.state = r.state"
             " AND l.election_date = r.election_date"
             " AND l.ballotready_position_id = r.ballotready_position_id",
             sql_dialect="duckdb",
         ),
-        # 5. Position-FK without date — catches date drift between sources
+        # 6. Position-FK without date — catches date drift between sources
         block_on("state", "ballotready_position_id"),
     ],
     additional_columns_to_retain=[
