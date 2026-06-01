@@ -61,18 +61,7 @@ EO_POST_PREDICTION_FILTER = f"""
         OR gamma_phone > 0
         OR gamma_official_office_name > 0
         OR list_has_any(
-          list_filter(
-            string_split(lower(official_office_name_l), ' '),
-            x -> len(x) > 1
-              AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-              AND NOT regexp_matches(x, '^\\d+$')
-          ),
-          list_filter(
-            string_split(lower(official_office_name_r), ' '),
-            x -> len(x) > 1
-              AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-              AND NOT regexp_matches(x, '^\\d+$')
-          )
+          {_office_locality_tokens("l")}, {_office_locality_tokens("r")}
         )
         OR gamma_office_type > 0
         OR gamma_ballotready_position_id > 0

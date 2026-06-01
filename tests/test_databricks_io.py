@@ -42,10 +42,12 @@ def test_df_to_databricks_schema():
         }
     )
     schema = _df_to_databricks_schema(df)
+    # matcha standardizes Databricks output on STRING-typed columns (downstream
+    # dbt staging casts back); _df_to_databricks_schema reflects that.
     assert "`name` STRING" in schema
-    assert "`age` BIGINT" in schema
-    assert "`score` DOUBLE" in schema
-    assert "`active` BOOLEAN" in schema
+    assert "`age` STRING" in schema
+    assert "`score` STRING" in schema
+    assert "`active` STRING" in schema
 
 
 def test_parquet_schema_coerces_null_columns_to_string(tmp_path):

@@ -136,7 +136,7 @@ def predict_and_cluster(
             ).description
         }
         for f in config.post_prediction_filters:
-            missing = sorted(set(re.findall(r"gamma_\w+", f)) - available_cols)
+            missing = sorted(set(re.findall(r"\bgamma_\w+", f)) - available_cols)
             if missing:
                 raise ValueError(
                     "Post-prediction filter references gamma column(s) absent "
