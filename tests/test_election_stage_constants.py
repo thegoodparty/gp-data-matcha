@@ -58,12 +58,25 @@ def test_zero_locality_tokens_different_office_rejected():
 
 
 def test_different_locality_tokens_rejected():
-    """Subset-rule regression guard: same candidate_office but distinct locality
+    """Set-equality regression guard: same candidate_office but distinct locality
     tokens ("nelson" vs "suamico") must not merge."""
     assert (
         _pair_passes_filter(
             official_office_name_l="'nelson village president'",
             official_office_name_r="'suamico village president'",
+        )
+        is False
+    )
+
+
+def test_asymmetric_locality_tokens_rejected():
+    """Single-token office must not match a strictly longer token list sharing
+    that token. {'grand'} vs {'grand','prairie'} are different localities, so
+    set equality (not subset) must reject the pair."""
+    assert (
+        _pair_passes_filter(
+            official_office_name_l="'grand village president'",
+            official_office_name_r="'grand prairie village president'",
         )
         is False
     )

@@ -100,10 +100,13 @@ ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
         gamma_official_office_name >= 3
         OR (
           candidate_office_l = candidate_office_r
-          -- Require locality-token SET agreement (one side's tokens are a
-          -- subset of the other's), not just any shared token. Any-overlap let
-          -- common geographic words ("grand", "port", "north") chain distinct
-          -- towns ("grand prairie" vs "grand saline") on generic offices.
+          -- Require locality-token SET EQUALITY, not subset or overlap. A
+          -- shorter set that is a subset of a longer one (e.g. {"grand"} vs
+          -- {"grand","prairie"}) would let a generic single-token office
+          -- hub-match multiple distinct localities and chain them transitively
+          -- ("grand prairie" <-> "grand saline"). Equality keeps only genuinely
+          -- same-locality races; for an identity crosswalk a missed match
+          -- (separate ids) is safer than a wrong merge (corrupted canonical id).
           AND (
             -- No locality tokens on either side (a statewide / no-locality
             -- office whose name is all stop words) means no locality
@@ -113,10 +116,8 @@ ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
             (len({_es_tok_l}) = 0 AND len({_es_tok_r}) = 0)
             OR (
               len(list_intersect({_es_tok_l}, {_es_tok_r})) > 0
-              AND (
-                len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_l})
-                OR len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_r})
-              )
+              AND len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_l})
+              AND len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_r})
             )
           )
         )
