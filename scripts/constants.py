@@ -104,10 +104,20 @@ ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
           -- subset of the other's), not just any shared token. Any-overlap let
           -- common geographic words ("grand", "port", "north") chain distinct
           -- towns ("grand prairie" vs "grand saline") on generic offices.
-          AND len(list_intersect({_es_tok_l}, {_es_tok_r})) > 0
           AND (
-            len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_l})
-            OR len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_r})
+            -- No locality tokens on either side (a statewide / no-locality
+            -- office whose name is all stop words) means no locality
+            -- disagreement, so the candidate_office match alone suffices.
+            -- Verified safe on current data: only ~18 such records, largest
+            -- same (state, date, stage, office) group is 2 -- no blob risk.
+            (len({_es_tok_l}) = 0 AND len({_es_tok_r}) = 0)
+            OR (
+              len(list_intersect({_es_tok_l}, {_es_tok_r})) > 0
+              AND (
+                len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_l})
+                OR len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_r})
+              )
+            )
           )
         )
       )
