@@ -95,6 +95,17 @@ _es_tok_r = _office_locality_tokens("r")
 ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
     state_l = state_r
       AND election_date_l = election_date_r
+      -- election_stage is a hard identity discriminator (a primary and a
+      -- general for the same office must NOT cluster), not an optional
+      -- refinement like district_identifier/seat_name below. A NULL stage is
+      -- failed CLOSED here (require both present and equal), NOT treated as a
+      -- wildcard: wildcarding would let a NULL-stage record match both the
+      -- primary and the general of one office and hub-chain the two distinct
+      -- stages. 100% populated in the prematch today; the explicit IS NOT NULL
+      -- documents the intended contract and makes the drop deliberate, not a
+      -- silent three-valued-logic side effect.
+      AND election_stage_l IS NOT NULL
+      AND election_stage_r IS NOT NULL
       AND election_stage_l = election_stage_r
       AND (
         gamma_official_office_name >= 3
