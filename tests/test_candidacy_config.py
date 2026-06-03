@@ -49,10 +49,7 @@ def _first_name_comparison_sql():
 
 def test_first_name_comparison_has_token_intersect_level():
     """first_name comparison includes an ArrayIntersectLevel over the precomputed
-    first_name_tokens column. Normalization and tokenization now happen upstream
-    in the dbt prematch model, so compound names ("charles kirk" vs "charles")
-    overlap on a shared >=2-char token while period/whitespace variants ("r.j."
-    vs "rj") collapse into the normalized first_name and match via ExactMatch."""
+    first_name_tokens column."""
     cmp = _first_name_comparison_sql()
     assert any(
         "first_name_tokens" in level.get("sql_condition", "")

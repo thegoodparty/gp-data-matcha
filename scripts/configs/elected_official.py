@@ -28,10 +28,6 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
                 ),
                 cll.ArrayIntersectLevel("first_name_aliases", min_intersection=1),
                 # Compound first names overlap on a shared >=2-char token
-                # ("charles kirk" vs "charles"). Tokens are precomputed upstream
-                # by the dbt first_name_tokens macro; period/whitespace variants
-                # ("r.j." vs "rj") collapse in the normalized first_name column
-                # and are caught by ExactMatchLevel above.
                 cll.ArrayIntersectLevel("first_name_tokens", min_intersection=1),
                 cll.JaroWinklerLevel("first_name", distance_threshold=0.92),
                 cll.ElseLevel(),
