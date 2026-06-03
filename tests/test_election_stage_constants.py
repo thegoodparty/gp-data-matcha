@@ -25,6 +25,14 @@ _BASE_PAIR = {
     "district_identifier_r": "cast(null as integer)",
     "seat_name_l": "cast(null as varchar)",
     "seat_name_r": "cast(null as varchar)",
+    # br_race_id anchor: NULL by default so the anchor bypass never fires for
+    # the office-identity tests below (they exercise the office-name path).
+    "br_race_id_l": "cast(null as integer)",
+    "br_race_id_r": "cast(null as integer)",
+    # candidacy-overlap anchor: empty by default so it never fires unless a test
+    # sets overlapping clusters.
+    "matched_candidacy_stage_clusters_l": "cast([] as varchar[])",
+    "matched_candidacy_stage_clusters_r": "cast([] as varchar[])",
 }
 
 
@@ -77,6 +85,84 @@ def test_asymmetric_locality_tokens_rejected():
         _pair_passes_filter(
             official_office_name_l="'grand village president'",
             official_office_name_r="'grand prairie village president'",
+        )
+        is False
+    )
+
+
+def test_br_race_id_anchor_bypasses_office_name_mismatch():
+    """A shared br_race_id (TS's own BR reference) stands in for office-name
+    agreement: even with a different candidate_office and a non-matching office
+    name, the pair passes when state/date/stage agree."""
+    assert (
+        _pair_passes_filter(
+            br_race_id_l="12345",
+            br_race_id_r="12345",
+            candidate_office_l="'School Board'",
+            candidate_office_r="'City Council'",
+            official_office_name_l="'lincoln county r-iv school board'",
+            official_office_name_r="'winfield r-4 school district'",
+        )
+        is True
+    )
+
+
+def test_br_race_id_anchor_still_rejects_stage_mismatch():
+    """The anchor bypasses office identity but NOT the stage gate: a shared
+    br_race_id that maps to the wrong BR stage (primary vs general) is rejected."""
+    assert (
+        _pair_passes_filter(
+            br_race_id_l="12345",
+            br_race_id_r="12345",
+            election_stage_l="'primary'",
+            election_stage_r="'general'",
+        )
+        is False
+    )
+
+
+def test_candidacy_cluster_overlap_bypasses_office_name_mismatch():
+    """A shared matched candidacy_stage cluster (a candidate in common) stands
+    in for office-name agreement: different candidate_office and office name
+    still pass when the clusters overlap and state/date/stage agree."""
+    assert (
+        _pair_passes_filter(
+            matched_candidacy_stage_clusters_l="['c1', 'c2']",
+            matched_candidacy_stage_clusters_r="['c2', 'c3']",
+            candidate_office_l="'School Board'",
+            candidate_office_r="'City Council'",
+            official_office_name_l="'lincoln county r-iv school board'",
+            official_office_name_r="'winfield r-4 school district'",
+        )
+        is True
+    )
+
+
+def test_disjoint_candidacy_clusters_do_not_bypass_office():
+    """Non-overlapping candidacy clusters carry no shared candidate, so they
+    must not satisfy office identity on their own."""
+    assert (
+        _pair_passes_filter(
+            matched_candidacy_stage_clusters_l="['c1', 'c2']",
+            matched_candidacy_stage_clusters_r="['c3', 'c4']",
+            candidate_office_l="'School Board'",
+            candidate_office_r="'City Council'",
+            official_office_name_l="'springfield school board'",
+            official_office_name_r="'madison city council'",
+        )
+        is False
+    )
+
+
+def test_null_br_race_id_does_not_bypass_office():
+    """NULL br_race_id (DDHQ, BR<->BR) must not satisfy office identity: with no
+    office-name or candidate_office/locality agreement the pair is rejected."""
+    assert (
+        _pair_passes_filter(
+            candidate_office_l="'School Board'",
+            candidate_office_r="'City Council'",
+            official_office_name_l="'springfield school board'",
+            official_office_name_r="'madison city council'",
         )
         is False
     )

@@ -109,6 +109,26 @@ ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
       AND election_stage_l = election_stage_r
       AND (
         gamma_official_office_name >= 3
+        -- BR-race-id anchor: a TS row carries its own br_race_id reference to a
+        -- BR race, so a shared br_race_id IS the office/race identity -- it
+        -- stands in for office-name agreement, which fails ~53% of the time on
+        -- cross-source office-name normalization. state/date/stage (above) and
+        -- district/seat (below) still gate, so this only bypasses office-name
+        -- variance, and the stage gate rejects the ~2% where a TS br_race_id
+        -- maps to the wrong BR stage. NULL br_race_id (DDHQ, BR<->BR) can't
+        -- satisfy it, so it never relaxes non-anchored pairs.
+        OR (br_race_id_l IS NOT NULL AND br_race_id_l = br_race_id_r)
+        -- Candidacy-overlap anchor: the two races share a matched
+        -- candidacy_stage ER cluster, i.e. a candidate in common -- that IS the
+        -- race identity, so it stands in for office-name agreement (which fails
+        -- on cross-source naming variance). Reaches DDHQ, which has no
+        -- br_race_id. state/date/stage still gate above; empty arrays (races
+        -- with no matched candidacies) can't satisfy it.
+        OR len(
+          list_intersect(
+            matched_candidacy_stage_clusters_l, matched_candidacy_stage_clusters_r
+          )
+        ) > 0
         OR (
           candidate_office_l = candidate_office_r
           -- Require locality-token SET EQUALITY, not subset or overlap. A

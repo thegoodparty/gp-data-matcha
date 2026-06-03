@@ -33,9 +33,7 @@ ELECTION_STAGE_CONFIG = EntityConfig(
         cl.ExactMatch("ballotready_position_id"),
     ],
     blocking_rules_for_prediction=[
-        # 1. Same-source dedup safety
-        block_on("br_race_id"),
-        # 2. Primary block: state + date + fuzzy office
+        # 1. Primary block: state + date + fuzzy office
         CustomRule(
             "l.state = r.state"
             " AND l.election_date = r.election_date"
@@ -43,24 +41,39 @@ ELECTION_STAGE_CONFIG = EntityConfig(
             " r.official_office_name) >= 0.88",
             sql_dialect="duckdb",
         ),
-        # 3. Normalized-office block: catches cross-source office-name variants
-        # that fall below the rule-2 JW threshold (e.g. "lincoln county r-iv
+        # 2. Normalized-office block: catches cross-source office-name variants
+        # that fall below the rule-1 JW threshold (e.g. "lincoln county r-iv
         # school board" vs "lincoln r-4 school district"). candidate_office is
         # the normalized office and is populated on all sources, so this closes
         # the DDHQ-vs-BR blocking-recall gap the audit surfaced. The
         # post-prediction filter still requires a shared locality token.
         block_on("state", "election_date", "candidate_office"),
-        # 4. Exact tuple block
+        # 3. Exact tuple block
         block_on("state", "election_date", "office_level", "district_identifier"),
-        # 5. Position-FK fast path
+        # 4. Position-FK fast path
+        block_on("state", "election_date", "ballotready_position_id"),
+        # 5. Position-FK without date — catches date drift between sources
+        block_on("state", "ballotready_position_id"),
+        # 6. BR-race-id anchor — TS rows carry their own br_race_id reference to
+        # a BR race (the prematch surfaces it; DDHQ/BR-side is the BR race's own
+        # id). Blocking on it generates BR<->TS candidate pairs the office/geo
+        # rules miss when the office name diverges. It is NOT a deterministic
+        # link: the post-prediction filter still confirms the pair (and rejects
+        # the ~2% where one TS br_race_id maps to the wrong BR stage).
+        block_on("br_race_id"),
+        # 7. Candidacy-overlap anchor — two races that share a matched
+        # candidacy_stage ER cluster have a candidate in common, strong evidence
+        # they're the same race even when office names diverge. Reaches DDHQ,
+        # which carries no br_race_id and can only link to BR via candidate
+        # identity. state + date prefilter bounds the array-overlap join; the
+        # filter confirms (a shared cluster satisfies office identity).
         CustomRule(
             "l.state = r.state"
             " AND l.election_date = r.election_date"
-            " AND l.ballotready_position_id = r.ballotready_position_id",
+            " AND list_has_any(l.matched_candidacy_stage_clusters,"
+            " r.matched_candidacy_stage_clusters)",
             sql_dialect="duckdb",
         ),
-        # 6. Position-FK without date — catches date drift between sources
-        block_on("state", "ballotready_position_id"),
     ],
     additional_columns_to_retain=[
         "source_name",
@@ -71,6 +84,7 @@ ELECTION_STAGE_CONFIG = EntityConfig(
         # comparison columns — Splink retains them automatically.
         "district_raw",
         "br_race_id",
+        "matched_candidacy_stage_clusters",
     ],
     em_training_blocks=[
         ("state", "election_date", "office_level"),
