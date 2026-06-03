@@ -2,10 +2,7 @@
 __pycache__/
 *.pyc
 results/
-*.csv
-!tests/dummy_data.csv
-!tests/dummy_data_elected.csv
-!tests/fixtures/*.csv
+data/
 .env
 *.egg-info/
 dist/
