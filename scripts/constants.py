@@ -16,37 +16,18 @@ OFFICE_STOP_WORDS = (
 
 # Shared post-prediction filter: requires name + identity signal + office overlap.
 # Each config can extend this with entity-specific clauses.
-# The locality-token-overlap branch is guarded by a district_identifier check —
-# locality overlap alone (e.g. shared city/county name) is insufficient when both
-# sides have a district_identifier that disagrees, since that signals different
-# races in the same locality (city council vs county board, district 8 vs 14, etc.).
-BASE_POST_PREDICTION_FILTER = f"""
+#
+# Office overlap is now satisfied by gamma_official_office_name > 0, which the
+# CustomComparison's ArrayIntersectLevel (over official_office_name_tokens)
+# fires on cross-source naming variants like DDHQ "Lincoln County R-IV School
+# District" ↔ BR "Winfield R-4 School Board". Token normalization (parens
+# preserved, roman→arabic, "no. N" → "r-N") lives in the dbt office_name_tokens
+# macro so the inline string-split fallback that used to live here is no
+# longer needed.
+BASE_POST_PREDICTION_FILTER = """
     gamma_last_name > 0
       AND (gamma_first_name > 0 OR gamma_email > 0 OR gamma_phone > 0)
-      AND (
-        gamma_official_office_name > 0
-        OR (
-          list_has_any(
-            list_filter(
-              string_split(lower(official_office_name_l), ' '),
-              x -> len(x) > 1
-                AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-                AND NOT regexp_matches(x, '^\\d+$')
-            ),
-            list_filter(
-              string_split(lower(official_office_name_r), ' '),
-              x -> len(x) > 1
-                AND NOT list_contains([{OFFICE_STOP_WORDS}], x)
-                AND NOT regexp_matches(x, '^\\d+$')
-            )
-          )
-          AND (
-            district_identifier_l IS NULL
-            OR district_identifier_r IS NULL
-            OR district_identifier_l = district_identifier_r
-          )
-        )
-      )
+      AND gamma_official_office_name > 0
 """
 
 # EO-specific post-prediction filter: adds contact-info bypass and office_type
