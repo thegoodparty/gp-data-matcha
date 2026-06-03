@@ -27,34 +27,12 @@ ELECTED_OFFICIAL_CONFIG = EntityConfig(
                     tf_adjustment_column="first_name",
                 ),
                 cll.ArrayIntersectLevel("first_name_aliases", min_intersection=1),
-                # Catches period/whitespace variants and compound first names where
-                # one source includes a middle name, honorific, or parenthetical
-                # (e.g. "r.j." vs "rj"; "charles kirk" vs "charles"; "dr. lori"
-                # vs "lori"). First clause: strip non-alpha and compare. Second:
-                # token intersection on tokens >= 2 chars.
-                cll.CustomLevel(
-                    sql_condition=(
-                        "regexp_replace(lower(first_name_l), '[^a-z]', '', 'g')"
-                        " = regexp_replace(lower(first_name_r), '[^a-z]', '', 'g')"
-                        " OR list_has_any("
-                        "  list_filter("
-                        "    string_split("
-                        "      lower(regexp_replace(first_name_l, '[^a-zA-Z ]', ' ', 'g')),"
-                        "      ' '"
-                        "    ),"
-                        "    x -> length(x) >= 2"
-                        "  ),"
-                        "  list_filter("
-                        "    string_split("
-                        "      lower(regexp_replace(first_name_r, '[^a-zA-Z ]', ' ', 'g')),"
-                        "      ' '"
-                        "    ),"
-                        "    x -> length(x) >= 2"
-                        "  )"
-                        ")"
-                    ),
-                    label_for_charts="normalized first name token overlap",
-                ),
+                # Compound first names overlap on a shared >=2-char token
+                # ("charles kirk" vs "charles"). Tokens are precomputed upstream
+                # by the dbt first_name_tokens macro; period/whitespace variants
+                # ("r.j." vs "rj") collapse in the normalized first_name column
+                # and are caught by ExactMatchLevel above.
+                cll.ArrayIntersectLevel("first_name_tokens", min_intersection=1),
                 cll.JaroWinklerLevel("first_name", distance_threshold=0.92),
                 cll.ElseLevel(),
             ],
