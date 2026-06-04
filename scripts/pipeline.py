@@ -34,6 +34,7 @@ def load_and_prepare(df: pd.DataFrame, config: EntityConfig) -> list[pd.DataFram
     # to JSON to keep the DataFrame all-string.
     for col in (
         "first_name_aliases",
+        "first_name_tokens",
         "official_office_name_tokens",
         "matched_candidacy_stage_clusters",
     ):

@@ -33,6 +33,8 @@ def test_is_databricks_fqn_with_path_separator():
 
 
 def test_df_to_databricks_schema():
+    # matcha standardizes on string-typed outputs: every column is STRING
+    # regardless of pandas dtype. Downstream dbt staging models cast as needed.
     df = pd.DataFrame(
         {
             "name": ["alice"],
