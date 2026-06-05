@@ -97,15 +97,12 @@ ELECTION_STAGE_CONFIG = EntityConfig(
     date_columns=["election_date"],
     clustered_output_name="clustered_election_stages.csv",
     post_prediction_filters=[
+        # is_special is fully derivable from election_stage (the stage string
+        # contains "special" iff is_special is true -- 0 divergence across all
+        # sources), and the filter already hard-gates election_stage equality,
+        # so a separate is_special suppression can never drop a pair the stage
+        # gate doesn't already drop. Omitted as redundant.
         ELECTION_STAGE_POST_PREDICTION_FILTER,
-        # Belt-and-suspenders: hard-suppress is_special mismatches even when
-        # Splink would otherwise consider the pair likely.
-        """
-          NOT (
-            is_special_l IS NOT NULL AND is_special_r IS NOT NULL
-            AND is_special_l != is_special_r
-          )
-        """,
     ],
     audit_display_columns=[
         "source_name",

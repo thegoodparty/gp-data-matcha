@@ -62,13 +62,15 @@ def test_post_prediction_filters_include_election_stage_filter():
     )
 
 
-def test_post_prediction_filters_suppress_is_special_mismatch():
-    """An is_special mismatch must be a hard suppression."""
-    found = any(
-        "is_special_l != is_special_r" in f
-        for f in ELECTION_STAGE_CONFIG.post_prediction_filters
-    )
-    assert found, "expected a post-prediction filter suppressing is_special mismatches"
+def test_no_redundant_is_special_filter():
+    """is_special is fully derivable from election_stage (the stage string
+    contains 'special' iff is_special is true), and the filter already
+    hard-gates election_stage equality, so a separate is_special suppression
+    is redundant and must not be present."""
+    filters = ELECTION_STAGE_CONFIG.post_prediction_filters
+    assert not any("is_special" in f for f in filters)
+    # The election_stage equality gate that subsumes it is present.
+    assert any("election_stage_l = election_stage_r" in f for f in filters)
 
 
 def test_default_input_table():
