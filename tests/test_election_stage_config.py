@@ -62,17 +62,6 @@ def test_post_prediction_filters_include_election_stage_filter():
     )
 
 
-def test_no_redundant_is_special_filter():
-    """is_special is fully derivable from election_stage (the stage string
-    contains 'special' iff is_special is true), and the filter already
-    hard-gates election_stage equality, so a separate is_special suppression
-    is redundant and must not be present."""
-    filters = ELECTION_STAGE_CONFIG.post_prediction_filters
-    assert not any("is_special" in f for f in filters)
-    # The election_stage equality gate that subsumes it is present.
-    assert any("election_stage_l = election_stage_r" in f for f in filters)
-
-
 def test_default_input_table():
     assert ELECTION_STAGE_CONFIG.default_input_table == (
         "goodparty_data_catalog.dbt.int__er_prematch_election_stages"

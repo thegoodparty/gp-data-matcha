@@ -117,6 +117,7 @@ EO_POST_PREDICTION_FILTER = f"""
 # the discriminating token.
 _es_tok_l = _office_locality_tokens("l")
 _es_tok_r = _office_locality_tokens("r")
+_es_tok_overlap = f"len(list_intersect({_es_tok_l}, {_es_tok_r}))"
 ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
     state_l = state_r
       AND election_date_l = election_date_r
@@ -171,9 +172,9 @@ ELECTION_STAGE_POST_PREDICTION_FILTER = f"""
             -- same (state, date, stage, office) group is 2 -- no blob risk.
             (len({_es_tok_l}) = 0 AND len({_es_tok_r}) = 0)
             OR (
-              len(list_intersect({_es_tok_l}, {_es_tok_r})) > 0
-              AND len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_l})
-              AND len(list_intersect({_es_tok_l}, {_es_tok_r})) = len({_es_tok_r})
+              {_es_tok_overlap} > 0
+              AND {_es_tok_overlap} = len({_es_tok_l})
+              AND {_es_tok_overlap} = len({_es_tok_r})
             )
           )
         )
